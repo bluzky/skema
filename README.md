@@ -1,14 +1,13 @@
-# Tarams
+# Skema
 
 Phoenix request params validation library.
 
-[![Build Status](https://github.com/bluzky/tarams/workflows/Elixir%20CI/badge.svg)](https://github.com/bluzky/tarams/actions) [![Coverage Status](https://coveralls.io/repos/github/bluzky/tarams/badge.svg?branch=master)](https://coveralls.io/github/bluzky/tarams?branch=master) [![Hex Version](https://img.shields.io/hexpm/v/tarams.svg)](https://hex.pm/packages/tarams) [![docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/tarams/)
+[![Build Status](https://github.com/bluzky/skema/workflows/Elixir%20CI/badge.svg)](https://github.com/bluzky/skema/actions) [![Coverage Status](https://coveralls.io/repos/github/bluzky/skema/badge.svg?branch=master)](https://coveralls.io/github/bluzky/skema?branch=master) [![Hex Version](https://img.shields.io/hexpm/v/skema.svg)](https://hex.pm/packages/skema) [![docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/skema/)
 
 
-**Warning: Tarams v1.0.0 APIs is not back compatible**
 
-- [Tarams](#tarams)
-    - [Why Tarams](#why-tarams)
+- [Skema](#skema)
+    - [Why Skema](#why-skema)
     - [Installation](#installation)
     - [Usage](#usage)
     - [Define schema](#define-schema)
@@ -25,7 +24,7 @@ Phoenix request params validation library.
     - [Contributors](#contributors)
 
 
-## Why Tarams
+## Why Skema
     - Reduce code boilerplate 
     - Shorter schema definition
     - Default function which generate value each casting time
@@ -34,13 +33,13 @@ Phoenix request params validation library.
     
 ## Installation
 
-[Available in Hex](https://hex.pm/tarams), the package can be installed
-by adding `tarams` to your list of dependencies in `mix.exs`:
+[Available in Hex](https://hex.pm/skema), the package can be installed
+by adding `skema` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:tarams, "~> 1.0.0"}
+    {:skema, "~> 1.0.0"}
   ]
 end
 ```
@@ -59,7 +58,7 @@ end
   }
 
 def index(conn, params) do
-    with {:ok, better_params} <- Tarams.cast(params, @index_params_schema) do
+    with {:ok, better_params} <- Skema.cast(params, @index_params_schema) do
         # do anything with your params
     else
         {:error, errors} -> # return params error
@@ -80,12 +79,12 @@ Or short form
 
 Field specs is a keyword list thay may include:
 
-- `type` is required, `Tarams` support same data type as `Ecto`. I borrowed code from Ecto
+- `type` is required, `Skema` support same data type as `Ecto`. I borrowed code from Ecto
 - `default`: default value or default function
 - `cast_func`: custom cast function
 - `number, format, length, in, not_in, func, required, each` are available validations
 - `from`: use value from another field
-- `as`: alias key you will receive from `Tarams.cast` if casting is succeeded
+- `as`: alias key you will receive from `Skema.cast` if casting is succeeded
 
 
 ### Default value
@@ -97,7 +96,7 @@ schema = %{
 }
 ```
 
-Or you can define a default value as a function. This function is evaluated when `Tarams.cast` gets invoked.
+Or you can define a default value as a function. This function is evaluated when `Skema.cast` gets invoked.
 
 ```elixir
 schema = %{
@@ -106,7 +105,7 @@ schema = %{
 ```
 
 ### Custom cast function
-You can define your own casting function, `tarams` provide `cast_func` option.
+You can define your own casting function, `skema` provide `cast_func` option.
 Your `cast_func` must follows this spec 
 
 #### 1. Custom cast fuction accept value only
@@ -132,7 +131,7 @@ schema = %{
     user_id: [type: {:array, :integer}, cast_func: &my_array_parser/1]
 }
 
-Tarams.cast(%{user_id: "1,2,3"}, schema)
+Skema.cast(%{user_id: "1,2,3"}, schema)
 ```
 This is a demo parser function.
 
@@ -150,7 +149,7 @@ schema = %{
     end]
 }
 
-Tarams.cast(data, schema)
+Skema.cast(data, schema)
 
 # > %{name: "TADA"}
 ```
@@ -177,14 +176,14 @@ schema = %{
     name: [type: :string, cast_func: {MyModule, :upcase}]
 }
 
-Tarams.cast(data, schema)
+Skema.cast(data, schema)
 
 # > %{name: "TADA"}
 ```
 
 
 ### Nested schema
-With `Tarams` you can parse and validate nested map and list easily
+With `Skema` you can parse and validate nested map and list easily
 
 ```elixir
 @my_schema %{
@@ -213,7 +212,7 @@ Or nested list schema
 
 ## Validation
 
-`Tarams` uses `Valdi` validation library. You can read more about [Valdi here](https://github.com/bluzky/valdi)
+`Skema` uses `Valdi` validation library. You can read more about [Valdi here](https://github.com/bluzky/valdi)
 Basically it supports following validation
 
 - validate inclusion/exclusion
@@ -282,7 +281,7 @@ schema = %{
     name: [type: :string, as: :full_name]
 }
 
-Tarams.cast(data, schema)
+Skema.cast(data, schema)
 
 # > %{full_name: "tada"}
 ```
@@ -299,7 +298,7 @@ schema = %{
     name: [type: :string, into: fn value -> {:ok, "name: #{value}}" end]
 }
 
-Tarams.cast(data, schema)
+Skema.cast(data, schema)
 # > %{name: "name: tada"}
 
 ```

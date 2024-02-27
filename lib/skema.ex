@@ -1,18 +1,14 @@
-defmodule Tarams do
+defmodule Skema do
   @moduledoc """
   Params provide some helpers method to work with parameters
   """
 
-  alias Tarams.Type
-  alias Tarams.Result
-
-  defdelegate plug_scrub(conn, keys \\ []), to: Tarams.Utils
-  defdelegate scrub_param(data), to: Tarams.Utils
-  defdelegate clean_nil(data), to: Tarams.Utils
+  alias Skema.Result
+  alias Skema.Type
 
   @doc """
   Cast and validate params with given schema.
-  See `Tarams.Schema` for instruction on how to define a schema
+  See `Skema.SchemaHelper` for instruction on how to define a schema
   And then use it like this
 
   ```elixir
@@ -23,7 +19,7 @@ defmodule Tarams do
       keyword: [type: :string, length: [min: 3, max: 100]],
     }
 
-    with {:ok, data} <- Tarams.cast(params, index_schema) do
+    with {:ok, data} <- Skema.cast(params, index_schema) do
       # do query data
     else
       {:error, errors} -> IO.puts(errors)
@@ -32,41 +28,57 @@ defmodule Tarams do
   ```
   """
 
-  @spec cast(data :: map(), schema :: map()) ::
+  @spec cast_and_validate(data :: map(), schema :: map()) ::
           {:ok, map()} | {:error, errors :: map()}
-  def cast(data, schema) do
-    schema = schema |> Tarams.Schema.expand()
+  def cast_and_validate(data, schema) do
+    schema = Skema.SchemaHelper.expand(schema)
 
-    Result.new(schema: schema, params: data)
-    |> do_cast()
-    |> do_validate()
-    |> do_transform()
+    [schema: schema, params: data]
+    |> Result.new()
+    |> cast()
+    |> validate()
+    |> transform()
     |> case do
       %Result{valid?: true, valid_data: valid_data} -> {:ok, valid_data}
       %{errors: errors} -> {:error, errors}
     end
   end
 
-  def cast!(data, schema) do
-    case cast(data, schema) do
+  def cast_and_validate!(data, schema) do
+    case cast_and_validate(data, schema) do
       {:ok, value} -> value
-      _ -> raise "Tarams :: bad input data"
+      _ -> raise "Skema :: bad input data"
     end
   end
 
   @doc """
   Cast and validate params with given schema.
   """
-  @spec cast(data :: map(), schema :: map()) ::
-          %Tarams.Result{}
-  def cast_only(data, schema) when is_map(data) do
-    schema = schema |> Tarams.Schema.expand()
+  @spec cast_apply(data :: map(), schema :: map()) ::
+          %Skema.Result{}
+  def cast_apply(data, schema) when is_map(data) do
+    schema = Skema.SchemaHelper.expand(schema)
 
-    Result.new(schema: schema, params: data)
-    |> do_cast()
+    [schema: schema, params: data]
+    |> Result.new()
+    |> cast()
+    |> case do
+      %{valid?: true, valid_data: data} -> {:ok, data}
+      %{errors: errors} -> {:error, errors}
+    end
   end
 
-  defp do_cast(%Result{} = result) do
+  @spec cast(data :: map(), schema :: map) :: %Skema.Result{}
+  def cast(data, schema) when is_map(data) do
+    schema = Skema.SchemaHelper.expand(schema)
+
+    [schema: schema, params: data]
+    |> Result.new()
+    |> cast()
+  end
+
+  @spec cast(%Skema.Result{}) :: %Skema.Result{}
+  defp cast(%Result{} = result) do
     Enum.reduce(result.schema, result, fn field, acc ->
       case cast_field(acc.params, field) do
         {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
@@ -78,18 +90,27 @@ defmodule Tarams do
   @doc """
   Validate params with given schema.
   """
-  def validate(data, schema) when is_map(data) do
-    schema = schema |> Tarams.Schema.expand()
+  def validate_apply(data, schema) when is_map(data) do
+    schema = Skema.SchemaHelper.expand(schema)
 
-    Result.new(schema: schema, params: data, valid_data: data)
-    |> do_validate()
+    [schema: schema, params: data, valid_data: data]
+    |> Result.new()
+    |> validate()
     |> case do
       %Result{valid?: true} -> :ok
       %{errors: errors} -> {:error, errors}
     end
   end
 
-  defp do_validate(%Result{} = result) do
+  def validate(data, schema) when is_map(data) do
+    schema = Skema.SchemaHelper.expand(schema)
+
+    [schema: schema, params: data, valid_data: data]
+    |> Result.new()
+    |> validate()
+  end
+
+  def validate(%Result{} = result) do
     Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
       # skip if there is an error
       if Result.get_error(acc, field_name) do
@@ -97,7 +118,7 @@ defmodule Tarams do
       else
         case validate_field(acc.valid_data, field) do
           :ok -> acc
-          {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
+          {:error, error} -> Result.put_error(acc, field_name, error)
         end
       end
     end)
@@ -106,18 +127,27 @@ defmodule Tarams do
   @doc """
   Transform params with given schema.
   """
-  def transform(data, schema) do
-    schema = schema |> Tarams.Schema.expand()
+  def transform_apply(data, schema) do
+    schema = Skema.SchemaHelper.expand(schema)
 
-    Result.new(schema: schema, params: data, valid_data: data)
-    |> do_transform()
+    [schema: schema, params: data, valid_data: data]
+    |> Result.new()
+    |> transform()
     |> case do
       %Result{valid?: true, valid_data: valid_data} -> {:ok, valid_data}
       %{errors: errors} -> {:error, errors}
     end
   end
 
-  defp do_transform(%Result{} = result) do
+  def transform(data, schema) do
+    schema = Skema.SchemaHelper.expand(schema)
+
+    [schema: schema, params: data, valid_data: data]
+    |> Result.new()
+    |> transform()
+  end
+
+  def transform(%Result{} = result) do
     Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
       # skip if there is an error
       if Result.get_error(acc, field_name) do
@@ -136,9 +166,10 @@ defmodule Tarams do
     {custom_message, definitions} = Keyword.pop(definitions, :message)
 
     # 1. cast value
-    with {:ok, value} <- do_cast(data, field_name, definitions) do
-      {:ok, {field_name, value}}
-    else
+    case do_cast(data, field_name, definitions) do
+      {:ok, value} ->
+        {:ok, {field_name, value}}
+
       {:error, error} ->
         # 3.2 Handle custom error message
         if custom_message do
@@ -202,7 +233,7 @@ defmodule Tarams do
 
   # cast nested map
   defp cast_value(value, %{} = type) when is_map(value) do
-    case cast_only(value, type) do
+    case cast(value, type) do
       %Result{valid?: true, valid_data: valid_data} ->
         {:ok, valid_data}
 
@@ -241,16 +272,11 @@ defmodule Tarams do
       do_validate(field_name, value, data, validation)
     end)
     |> collect_validation_result()
-    |> case do
-      {:error, errors} -> {:error, {field_name, errors}}
-      :ok -> :ok
-    end
   end
 
   # handle custom validation for required
   # Support dynamic require validation
-  defp do_validate(_, value, data, {:required, required})
-       when is_function(required) or is_tuple(required) do
+  defp do_validate(_, value, data, {:required, required}) when is_function(required) or is_tuple(required) do
     case apply_function(required, value, data) do
       {:error, _} = error ->
         error
@@ -272,22 +298,24 @@ defmodule Tarams do
   defp do_validate(_, value, _, {:type, type}) when is_map(type) do
     # validate nested map
     if is_map(value) do
-      validate(value, type)
+      validate_apply(value, type)
     else
       {:error, "is invalid"}
     end
   end
 
-  defp do_validate(_, value, _, {:type, {:array, type}}) when is_map(type) do
-    Enum.map(value, fn item ->
+  defp do_validate(_, value, _, {:type, {:array, type}}) when is_list(value) do
+    value
+    |> Enum.map(fn item ->
       do_validate(nil, item, value, {:type, type})
     end)
+    |> Enum.reverse()
     |> collect_validation_result()
   end
 
   # validate module
   defp do_validate(_, value, _, {:type, type}) do
-    if is_struct(type) and Kernel.function_exported?(type, :validate, 1) do
+    if is_atom(type) and Kernel.function_exported?(type, :validate, 1) do
       type.validate(value)
     else
       Valdi.validate(value, [{:type, type}])
@@ -313,6 +341,7 @@ defmodule Tarams do
     summary =
       Enum.reduce(results, {:ok, []}, fn
         :ok, acc -> acc
+        {:error, %Skema.Result{errors: errors}}, {_, acc_msg} -> {:error, [[errors] | acc_msg]}
         {:error, msg}, {_, acc_msg} when is_list(msg) -> {:error, [msg | acc_msg]}
         {:error, msg}, {_, acc_msg} -> {:error, [[msg] | acc_msg]}
       end)

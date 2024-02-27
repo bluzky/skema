@@ -1,11 +1,12 @@
-defmodule ParamTest.StringList do
+defmodule SkemaTest.StringList do
+  @moduledoc false
   defstruct values: []
 
   def cast(value) when is_binary(value) do
     rs =
-      String.split(value, ",")
-      |> Tarams.scrub_param()
-      |> Tarams.clean_nil()
+      value
+      |> String.split(",")
+      |> Enum.reject(&(&1 in [nil, ""]))
 
     {:ok, %__MODULE__{values: rs}}
   end
@@ -13,7 +14,8 @@ defmodule ParamTest.StringList do
   def cast(_), do: :error
 end
 
-defmodule ParamTest.User do
+defmodule SkemaTest.User do
+  @moduledoc false
   defstruct [:name]
 
   def new(name) do
@@ -29,12 +31,11 @@ end
 
 defmodule ParamTest do
   use ExUnit.Case
-  alias Tarams
 
-  alias ParamTest.StringList
-  alias ParamTest.User
+  alias SkemaTest.StringList
+  alias SkemaTest.User
 
-  describe "Tarams.cast" do
+  describe "Skema.cast_and_validate" do
     @type_checks [
       [:string, "Bluz", "Bluz", :ok],
       [:string, 10, nil, :error],
@@ -135,13 +136,9 @@ defmodule ParamTest do
       [User, %{email: "Dzung"}, nil, :error]
     ]
 
-    test "cast base type" do
-      @type_checks
-      |> Enum.each(fn [type, value, expected_value, expect] ->
-        rs =
-          Tarams.cast(%{"key" => value}, %{
-            key: type
-          })
+    test "cast_and_validate base type" do
+      Enum.each(@type_checks, fn [type, value, expected_value, expect] ->
+        rs = Skema.cast_and_validate(%{"key" => value}, %{key: type})
 
         if expect == :ok do
           assert {:ok, %{key: ^expected_value}} = rs
@@ -152,26 +149,15 @@ defmodule ParamTest do
     end
 
     test "schema short hand" do
-      assert {:ok, %{number: 10}} = Tarams.cast(%{number: "10"}, %{number: :integer})
+      assert {:ok, %{number: 10}} = Skema.cast_and_validate(%{number: "10"}, %{number: :integer})
 
       assert {:ok, %{number: 10}} =
-               Tarams.cast(%{number: "10"}, %{number: [:integer, number: [min: 5]]})
+               Skema.cast_and_validate(%{number: "10"}, %{number: [:integer, number: [min: 5]]})
     end
 
-    test "cast ok" do
-      assert 10 = Tarams.Type.cast!(:integer, 10)
-      assert 10 = Tarams.Type.cast!(:integer, "10")
-    end
-
-    test "type cast raise exception" do
-      assert_raise RuntimeError, fn ->
-        Tarams.Type.cast!(:integer, "10xx")
-      end
-    end
-
-    test "cast mixed keys atom and string" do
+    test "cast_and_validate mixed keys atom and string" do
       assert {:ok, %{active: false, is_admin: true, name: "blue", age: 19}} =
-               Tarams.cast(
+               Skema.cast_and_validate(
                  %{"active" => false, "is_admin" => true, "name" => "blue", "age" => 19},
                  %{
                    active: :boolean,
@@ -182,47 +168,47 @@ defmodule ParamTest do
                )
     end
 
-    test "Tarams.cast! success" do
-      assert %{number: 10} = Tarams.cast!(%{number: "10"}, %{number: :integer})
+    test "Skema.cast_and_validate! success" do
+      assert %{number: 10} = Skema.cast_and_validate!(%{number: "10"}, %{number: :integer})
     end
 
-    test "Tarams.cast! raise exception" do
+    test "Skema.cast_and_validate! raise exception" do
       assert_raise RuntimeError, fn ->
-        Tarams.cast!(%{number: 10}, %{number: {:array, :string}})
+        Skema.cast_and_validate!(%{number: 10}, %{number: {:array, :string}})
       end
     end
 
-    test "cast with alias" do
+    test "cast_and_validate with alias" do
       schema = %{
         email: [type: :string, as: :user_email]
       }
 
-      rs = Tarams.cast(%{email: "xx@yy.com"}, schema)
+      rs = Skema.cast_and_validate(%{email: "xx@yy.com"}, schema)
       assert {:ok, %{user_email: "xx@yy.com"}} = rs
     end
 
-    test "cast with from" do
+    test "cast_and_validate with from" do
       schema = %{
         user_email: [type: :string, from: :email]
       }
 
-      rs = Tarams.cast(%{email: "xx@yy.com"}, schema)
+      rs = Skema.cast_and_validate(%{email: "xx@yy.com"}, schema)
       assert {:ok, %{user_email: "xx@yy.com"}} = rs
     end
 
-    test "cast use default value if field not exist in params" do
+    test "cast_and_validate use default value if field not exist in params" do
       assert {:ok, %{name: "Dzung"}} =
-               Tarams.cast(%{}, %{name: [type: :string, default: "Dzung"]})
+               Skema.cast_and_validate(%{}, %{name: [type: :string, default: "Dzung"]})
     end
 
-    test "cast use default function if field not exist in params" do
+    test "cast_and_validate use default function if field not exist in params" do
       assert {:ok, %{name: "123"}} =
-               Tarams.cast(%{}, %{name: [type: :string, default: fn -> "123" end]})
+               Skema.cast_and_validate(%{}, %{name: [type: :string, default: fn -> "123" end]})
     end
 
-    test "cast func is used if set" do
+    test "cast_and_validate func is used if set" do
       assert {:ok, %{name: "Dzung is so handsome"}} =
-               Tarams.cast(%{name: "Dzung"}, %{
+               Skema.cast_and_validate(%{name: "Dzung"}, %{
                  name: [
                    type: :string,
                    cast_func: fn value -> {:ok, "#{value} is so handsome"} end
@@ -230,9 +216,9 @@ defmodule ParamTest do
                })
     end
 
-    test "cast func with 2 arguments" do
+    test "cast_and_validate func with 2 arguments" do
       assert {:ok, %{name: "DZUNG"}} =
-               Tarams.cast(%{name: "Dzung", strong: true}, %{
+               Skema.cast_and_validate(%{name: "Dzung", strong: true}, %{
                  name: [
                    type: :string,
                    cast_func: fn value, data ->
@@ -250,9 +236,9 @@ defmodule ParamTest do
       {:ok, String.upcase(value)}
     end
 
-    test "cast func with tuple module & function" do
+    test "cast_and_validate func with tuple module & function" do
       assert {:ok, %{name: "DZUNG"}} =
-               Tarams.cast(%{name: "Dzung"}, %{
+               Skema.cast_and_validate(%{name: "Dzung"}, %{
                  name: [
                    type: :string,
                    cast_func: {__MODULE__, :upcase_string}
@@ -260,9 +246,9 @@ defmodule ParamTest do
                })
     end
 
-    test "cast func with 3 arguments return error" do
+    test "cast_and_validate func with 3 arguments return error" do
       assert {:error, %{name: ["bad function"]}} =
-               Tarams.cast(%{name: "Dzung", strong: true}, %{
+               Skema.cast_and_validate(%{name: "Dzung", strong: true}, %{
                  name: [
                    type: :string,
                    cast_func: fn value, _data, _name ->
@@ -272,9 +258,9 @@ defmodule ParamTest do
                })
     end
 
-    test "cast func return custom message" do
+    test "cast_and_validate func return custom message" do
       assert {:error, %{name: ["custom error"]}} =
-               Tarams.cast(%{name: "Dzung"}, %{
+               Skema.cast_and_validate(%{name: "Dzung"}, %{
                  name: [
                    type: :string,
                    cast_func: fn _ ->
@@ -294,7 +280,7 @@ defmodule ParamTest do
       ]
     }
 
-    test "cast embed type with valid value" do
+    test "cast_and_validate embed type with valid value" do
       data = %{
         user: %{
           name: "D",
@@ -303,10 +289,10 @@ defmodule ParamTest do
         }
       }
 
-      assert {:ok, ^data} = Tarams.cast(data, @schema)
+      assert {:ok, ^data} = Skema.cast_and_validate(data, @schema)
     end
 
-    test "cast with no value should default to nil and skip validation" do
+    test "cast_and_validate with no value should default to nil and skip validation" do
       data = %{
         user: %{
           name: "D",
@@ -314,10 +300,10 @@ defmodule ParamTest do
         }
       }
 
-      assert {:ok, %{user: %{email: nil}}} = Tarams.cast(data, @schema)
+      assert {:ok, %{user: %{email: nil}}} = Skema.cast_and_validate(data, @schema)
     end
 
-    test "cast embed validation invalid should error" do
+    test "cast_and_validate embed validation invalid should error" do
       data = %{
         user: %{
           name: "D",
@@ -327,17 +313,17 @@ defmodule ParamTest do
       }
 
       assert {:error, %{user: [%{email: ["length must be greater than or equal to 5"]}]}} =
-               Tarams.cast(data, @schema)
+               Skema.cast_and_validate(data, @schema)
     end
 
-    test "cast missing required value should error" do
+    test "cast_and_validate missing required value should error" do
       data = %{
         user: %{
           age: 10
         }
       }
 
-      assert {:error, %{user: [%{name: ["is required"]}]}} = Tarams.cast(data, @schema)
+      assert {:error, %{user: [%{name: ["is required"]}]}} = Skema.cast_and_validate(data, @schema)
     end
 
     @array_schema %{
@@ -352,7 +338,7 @@ defmodule ParamTest do
       ]
     }
 
-    test "cast array embed schema with valid data" do
+    test "cast_and_validate array embed schema with valid data" do
       data = %{
         "user" => [
           %{
@@ -364,26 +350,26 @@ defmodule ParamTest do
       }
 
       assert {:ok, %{user: [%{age: 10, email: "d@h.com", name: "D"}]}} =
-               Tarams.cast(data, @array_schema)
+               Skema.cast_and_validate(data, @array_schema)
     end
 
-    test "cast empty array embed should ok" do
+    test "cast_and_validate empty array embed should ok" do
       data = %{
         "user" => []
       }
 
-      assert {:ok, %{user: []}} = Tarams.cast(data, @array_schema)
+      assert {:ok, %{user: []}} = Skema.cast_and_validate(data, @array_schema)
     end
 
-    test "cast nil array embed should ok" do
+    test "cast_and_validate nil array embed should ok" do
       data = %{
         "user" => nil
       }
 
-      assert {:ok, %{user: nil}} = Tarams.cast(data, @array_schema)
+      assert {:ok, %{user: nil}} = Skema.cast_and_validate(data, @array_schema)
     end
 
-    test "cast array embed with invalid value should error" do
+    test "cast_and_validate array embed with invalid value should error" do
       data = %{
         "user" => [
           %{
@@ -398,7 +384,7 @@ defmodule ParamTest do
         ]
       }
 
-      assert {:error, %{user: [%{name: ["is required"]}]}} = Tarams.cast(data, @array_schema)
+      assert {:error, %{user: [%{name: ["is required"]}]}} = Skema.cast_and_validate(data, @array_schema)
     end
 
     test "error with custom message" do
@@ -406,34 +392,34 @@ defmodule ParamTest do
         age: [type: :integer, number: [min: 10], message: "so khong hop le"]
       }
 
-      assert {:error, %{age: ["so khong hop le"]}} = Tarams.cast(%{"age" => "abc"}, schema)
+      assert {:error, %{age: ["so khong hop le"]}} = Skema.cast_and_validate(%{"age" => "abc"}, schema)
     end
 
-    test "cast validate required skip if default is set" do
+    test "cast_and_validate validate required skip if default is set" do
       assert {:ok, %{name: "Dzung"}} =
-               Tarams.cast(%{}, %{name: [type: :string, default: "Dzung", required: true]})
+               Skema.cast_and_validate(%{}, %{name: [type: :string, default: "Dzung", required: true]})
     end
 
-    test "return cast error first" do
+    test "return cast_and_validate error first" do
       schema = %{
         age: [type: :integer, number: [min: 10]],
         hobbies: [type: {:array, :string}]
       }
 
-      assert {:error, %{age: ["is invalid"]}} = Tarams.cast(%{"age" => "abc"}, schema)
+      assert {:error, %{age: ["is invalid"]}} = Skema.cast_and_validate(%{"age" => "abc"}, schema)
     end
 
-    test "return cast error and validation error for field with cast valid" do
+    test "return cast_and_validate error and validation error for field with cast_and_validate valid" do
       schema = %{
         age: [type: :integer, number: [min: 10]],
         hobbies: [type: {:array, :string}]
       }
 
       assert {:error, %{age: ["must be greater than or equal to 10"], hobbies: ["is invalid"]}} =
-               Tarams.cast(%{"age" => "1", hobbies: "bad array"}, schema)
+               Skema.cast_and_validate(%{"age" => "1", hobbies: "bad array"}, schema)
     end
 
-    test "return cast error and validation error for field with cast valid with nested schema" do
+    test "return cast_and_validate error and validation error for field with cast_and_validate valid with nested schema" do
       schema = %{
         user: %{
           age: [type: :integer, number: [min: 10]],
@@ -448,7 +434,7 @@ defmodule ParamTest do
                   hobbies: ["is invalid"]
                 },
                 id: ["is invalid"]
-              }} = Tarams.cast(%{user: %{"age" => "1", hobbies: "bad array"}, id: "x"}, schema)
+              }} = Skema.cast_and_validate(%{user: %{"age" => "1", hobbies: "bad array"}, id: "x"}, schema)
     end
 
     test "return data invalid when data given for nested schema is not map" do
@@ -456,50 +442,50 @@ defmodule ParamTest do
       cases = [%{nested: []}, %{nested: 1}, %{nested: "string"}]
 
       Enum.each(cases, fn case ->
-        assert {:error, %{nested: ["is invalid"]}} = Tarams.cast(case, schema)
+        assert {:error, %{nested: ["is invalid"]}} = Skema.cast_and_validate(case, schema)
       end)
     end
 
     test "return error when given map for array type" do
       schema = %{ids: {:array, :integer}}
       data = %{ids: %{}}
-      assert {:error, %{ids: ["is invalid"]}} = Tarams.cast(data, schema)
+      assert {:error, %{ids: ["is invalid"]}} = Skema.cast_and_validate(data, schema)
     end
 
     test "validate array item" do
       assert {:ok, %{id: [1, 2, 3]}} =
-               Tarams.cast(%{id: ["1", "2", 3]}, %{
+               Skema.cast_and_validate(%{id: ["1", "2", 3]}, %{
                  id: [type: {:array, :integer}, each: [number: [min: 0]]]
                })
     end
 
     test "validate array item with error" do
       assert {:error, %{id: [[0, "must be greater than or equal to 2"]]}} =
-               Tarams.cast(%{id: ["1", "2", 3]}, %{
+               Skema.cast_and_validate(%{id: ["1", "2", 3]}, %{
                  id: [type: {:array, :integer}, each: [number: [min: 2]]]
                })
     end
 
     test "dynamic require validation" do
       assert {:ok, %{name: "Dzung"}} =
-               Tarams.cast(%{}, %{
+               Skema.cast_and_validate(%{}, %{
                  name: [type: :string, default: "Dzung", required: fn _, _ -> true end]
                })
 
       assert {:error, %{image: ["is required"]}} =
-               Tarams.cast(%{}, %{
+               Skema.cast_and_validate(%{}, %{
                  name: [type: :string, default: "Dzung", required: true],
                  image: [type: :string, required: fn _, data -> data.name == "Dzung" end]
                })
 
       assert {:error, %{image: ["is required"]}} =
-               Tarams.cast(%{}, %{
+               Skema.cast_and_validate(%{}, %{
                  name: [type: :string, default: "Dzung", required: true],
                  image: [type: :string, required: {__MODULE__, :should_require_image}]
                })
 
       assert {:error, %{image: ["is required"]}} =
-               Tarams.cast(%{}, %{
+               Skema.cast_and_validate(%{}, %{
                  name: [type: :string, default: "Dzung", required: true],
                  image: [type: :string, required: {__MODULE__, :should_require_image1}]
                })
@@ -522,7 +508,7 @@ defmodule ParamTest do
 
       data = %{status: 0, deleted: true}
 
-      assert {:ok, %{product_status: 0}} = Tarams.cast(data, schema)
+      assert {:ok, %{product_status: 0}} = Skema.cast_and_validate(data, schema)
     end
 
     test "transform function accept value only" do
@@ -545,7 +531,7 @@ defmodule ParamTest do
         status: 0
       }
 
-      assert {:ok, %{product_status: "draft"}} = Tarams.cast(data, schema)
+      assert {:ok, %{product_status: "draft"}} = Skema.cast_and_validate(data, schema)
     end
 
     test "transform function with context" do
@@ -572,7 +558,7 @@ defmodule ParamTest do
         deleted: true
       }
 
-      assert {:ok, %{product_status: "deleted"}} = Tarams.cast(data, schema)
+      assert {:ok, %{product_status: "deleted"}} = Skema.cast_and_validate(data, schema)
     end
 
     test "transform function with module, function tuple 2 arguments" do
@@ -582,7 +568,7 @@ defmodule ParamTest do
 
       data = %{status: "success"}
 
-      assert {:ok, %{product_status: "SUCCESS"}} = Tarams.cast(data, schema)
+      assert {:ok, %{product_status: "SUCCESS"}} = Skema.cast_and_validate(data, schema)
     end
 
     test "transform function with module, function tuple 1 arguments" do
@@ -592,7 +578,7 @@ defmodule ParamTest do
 
       data = %{status: "success"}
 
-      assert {:ok, %{product_status: "SUCCESS"}} = Tarams.cast(data, schema)
+      assert {:ok, %{product_status: "SUCCESS"}} = Skema.cast_and_validate(data, schema)
     end
 
     test "transform function return value" do
@@ -612,7 +598,7 @@ defmodule ParamTest do
         status: 0
       }
 
-      assert {:ok, %{product_status: "draft"}} = Tarams.cast(data, schema)
+      assert {:ok, %{product_status: "draft"}} = Skema.cast_and_validate(data, schema)
     end
   end
 end

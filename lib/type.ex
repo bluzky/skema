@@ -1,4 +1,4 @@
-defmodule Tarams.Type do
+defmodule Skema.Type do
   @moduledoc """
   Cast data to target type.
   Much code of this module is borrowed from `Ecto.Type`
@@ -11,9 +11,10 @@ defmodule Tarams.Type do
   end
 
   def cast!(type, value) do
-    with {:ok, data} <- cast(type, value) do
-      data
-    else
+    case cast(type, value) do
+      {:ok, data} ->
+        data
+
       _ ->
         raise "invalid #{inspect(type)}"
     end
@@ -130,9 +131,8 @@ defmodule Tarams.Type do
   defp cast_date(%DateTime{} = date), do: {:ok, DateTime.to_date(date)}
   defp cast_date(%NaiveDateTime{} = date), do: {:ok, NaiveDateTime.to_date(date)}
 
-  defp cast_date(%{year: year, month: month, day: day})
-       when is_integer(year) and is_integer(month) and is_integer(day),
-       do: Date.new(year, month, day)
+  defp cast_date(%{year: year, month: month, day: day}) when is_integer(year) and is_integer(month) and is_integer(day),
+    do: Date.new(year, month, day)
 
   defp cast_date(_), do: :error
 
@@ -169,14 +169,7 @@ defmodule Tarams.Type do
     end
   end
 
-  defp cast_naive_datetime(%{
-         year: empty,
-         month: empty,
-         day: empty,
-         hour: empty,
-         minute: empty,
-         second: empty
-       })
+  defp cast_naive_datetime(%{year: empty, month: empty, day: empty, hour: empty, minute: empty, second: empty})
        when empty in ["", nil],
        do: {:ok, nil}
 

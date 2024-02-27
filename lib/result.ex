@@ -1,6 +1,6 @@
-defmodule Tarams.Result do
+defmodule Skema.Result do
   @moduledoc """
-  Result Struct for Tarams operations
+  Result Struct for Skema operations
   """
   @enforce_keys [:schema]
   defstruct schema: %{},
@@ -12,7 +12,7 @@ defmodule Tarams.Result do
   @doc """
   Create a new Result struct with given schema map and params.
   """
-  @spec new(%{}) :: %Tarams.Result{}
+  @spec new(%{}) :: %Skema.Result{}
   def new(attrs) do
     struct(__MODULE__, attrs)
   end
@@ -20,7 +20,7 @@ defmodule Tarams.Result do
   @doc """
   Put error to result.
   """
-  @spec put_error(%Tarams.Result{}, field :: atom, error :: String.t()) :: %Tarams.Result{}
+  @spec put_error(%Skema.Result{}, field :: atom, error :: String.t()) :: %Skema.Result{}
   def put_error(result, field, error) do
     errors =
       case get_error(result, field) do
@@ -28,21 +28,21 @@ defmodule Tarams.Result do
         errors -> [error | errors]
       end
 
-    %Tarams.Result{result | errors: Map.put(result.errors, field, errors), valid?: false}
+    %Skema.Result{result | errors: Map.put(result.errors, field, errors), valid?: false}
   end
 
   @doc """
   Put valid data to result.
   """
-  @spec put_data(%Tarams.Result{}, field :: atom, value :: any) :: %Tarams.Result{}
+  @spec put_data(%Skema.Result{}, field :: atom, value :: any) :: %Skema.Result{}
   def put_data(result, field, value) do
-    %Tarams.Result{result | valid_data: Map.put(result.valid_data, field, value)}
+    %Skema.Result{result | valid_data: Map.put(result.valid_data, field, value)}
   end
 
   @doc """
   Get error from result for given field.
   """
-  @spec get_error(%Tarams.Result{}, field :: atom) :: String.t() | nil
+  @spec get_error(%Skema.Result{}, field :: atom) :: String.t() | nil
   def get_error(result, field) do
     Map.get(result.errors, field)
   end

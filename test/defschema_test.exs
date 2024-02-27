@@ -1,0 +1,189 @@
+defmodule DefSchemaTest.StringList do
+  @moduledoc false
+  defstruct values: []
+
+  def cast(value) when is_binary(value) do
+    rs =
+      value
+      |> String.split(",")
+      |> Enum.reject(&(&1 in [nil, ""]))
+
+    {:ok, %__MODULE__{values: rs}}
+  end
+
+  def cast(_), do: :error
+end
+
+defmodule DefSchemaTest.User do
+  @moduledoc false
+  defstruct [:name]
+
+  def new(name) do
+    %__MODULE__{name: name}
+  end
+
+  def cast(%{name: name}) do
+    {:ok, new(name)}
+  end
+
+  def cast(_), do: :error
+end
+
+defmodule DefSchemaTest do
+  use ExUnit.Case
+  use Skema.Schema
+
+  alias DefSchemaTest.StringList
+  alias DefSchemaTest.User
+
+  describe "Skema.cast_and_validate" do
+    def_schema UserModel do
+      field(:name, :string, required: true)
+      field(:email, :string, length: [min: 5])
+      field(:age, :integer)
+    end
+
+    def_schema UserNestedModel do
+      field(:user, UserModel)
+    end
+
+    test "cast embed type with valid value" do
+      data = %{
+        user: %{
+          name: "D",
+          email: "d@h.com",
+          age: 10
+        }
+      }
+
+      assert {:ok, %UserNestedModel{user: %UserModel{name: "D", email: "d@h.com", age: 10}}} = UserNestedModel.cast(data)
+    end
+
+    test "cast with no value should default to nil and skip validation" do
+      data = %{
+        user: %{
+          name: "D",
+          age: 10
+        }
+      }
+
+      assert {:ok, %{user: %{email: nil}}} = UserNestedModel.cast(data)
+    end
+
+    test "cast_and_validate embed validation invalid should error" do
+      data = %{
+        user: %{
+          name: "D",
+          email: "h",
+          age: 10
+        }
+      }
+
+      assert {:ok, casted_data} =
+               UserNestedModel.cast(data)
+
+      assert {:error, %{errors: %{user: [%{email: ["length must be greater than or equal to 5"]}]}}} =
+               UserNestedModel.validate(casted_data)
+    end
+
+    test "cast_and_validate missing required value should error" do
+      data = %{
+        user: %{
+          age: 10
+        }
+      }
+
+      assert {:ok, casted_data} =
+               UserNestedModel.cast(data)
+
+      assert {:error, %{errors: %{user: [%{name: ["is required"]}]}}} =
+               UserNestedModel.validate(casted_data)
+    end
+
+    def_schema UserListModel do
+      field(:users, {:array, UserModel})
+    end
+
+    test "cast_and_validate array embed schema with valid data" do
+      data = %{
+        "users" => [
+          %{
+            "name" => "D",
+            "email" => "d@h.com",
+            "age" => 10
+          }
+        ]
+      }
+
+      assert {:ok, %{users: [%{age: 10, email: "d@h.com", name: "D"}]}} = UserListModel.cast(data)
+    end
+
+    test "cast_and_validate empty array embed should ok" do
+      data = %{
+        "users" => []
+      }
+
+      assert {:ok, %{users: []}} = UserListModel.cast(data)
+    end
+
+    test "cast_and_validate nil array embed should ok" do
+      data = %{
+        "users" => nil
+      }
+
+      assert {:ok, %{users: nil}} = UserListModel.cast(data)
+    end
+
+    test "cast_and_validate array embed with invalid value should error" do
+      data = %{
+        "users" => [
+          %{
+            "email" => "d@h.com",
+            "age" => 10
+          },
+          %{
+            "name" => "HUH",
+            "email" => "om",
+            "age" => 10
+          }
+        ]
+      }
+
+      assert {:ok, casted} = UserListModel.cast(data)
+
+      assert {:error,
+              %{errors: %{users: [%{name: ["is required"]}, %{email: ["length must be greater than or equal to 5"]}]}}} =
+               UserListModel.validate(casted)
+    end
+
+    def_schema UserModel2 do
+      field(:age, :integer, number: [min: 10])
+      field(:hobbies, {:array, :string})
+    end
+
+    def_schema UserRoleModel do
+      field(:user, UserModel2)
+      field(:id, :integer)
+    end
+
+    test "return cast error and validation error for field with cast_and_validate valid with nested schema" do
+      params = %{user: %{"age" => "1", hobbies: "bad array"}, id: "x"}
+
+      assert {:error,
+              %{
+                errors: %{
+                  user: %{
+                    errors: %{
+                      hobbies: ["is invalid"]
+                    }
+                  },
+                  id: ["is invalid"]
+                }
+              }} = UserRoleModel.cast_and_validate(params)
+    end
+
+    test "return error when given map for array type" do
+      assert {:error, %{errors: %{users: ["is invalid"]}}} = UserListModel.cast(%{users: %{}})
+    end
+  end
+end

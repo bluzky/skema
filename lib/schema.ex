@@ -1,264 +1,205 @@
-defmodule Tarams.Schema do
+defmodule Skema.Schema do
   @moduledoc """
-  This is only a specification to define a schema to use with `Tarams.Params.cast` and `Tarams.Contract.validate`
-
-  Schema is just a map or keyword list that follow some simple conventions. Map's key is the field name and the value is a keyword list of field specifications.
-
-  **Example**
-
-  ```elixir
-  %{
-    name: [type: :string, format: ~r/\d{4}/],
-    age: [type: :integer, number: [min: 15, max: 50]].
-    skill: [type: {:array, :string}, length: [min: 1, max: 10]]
-  }
-  ```
-
-  If you only specify type of data, you can write it shorthand style like this
-
-  ```elixir
-  %{
-    name: :string,
-    age: :integer,
-    skill: {:array, :string}
-  }
-  ```
-
-
-  ## I. Field type
-
-  **Built-in types**
-
-  A type could be any of built-in supported types:
-
-  - `boolean`
-  - `string` | `binary`
-  - `integer`
-  - `float`
-  - `number` (integer or float)
-  - `date`
-  - `time`
-  - `datetime` | `utc_datetime`: date time with time zone
-  - `naive_datetime`: date time without time zone
-  - `map`
-  - `keyword`
-  - `{array, type}` array of built-in type, all item must be the same type
-
-
-  **Other types**
-  Custom type may be supported depends on module.
-
-  **Nested types**
-  Nested types could be a another **schema** or list of **schema**
-
-
-  ```elixir
-  %{
-    user: [type: %{
-        name: [type: :string]
-      }]
-  }
-  ```
-
-  Or list of schema
-
-  ```elixir
-  %{
-    users: [type: {:array, %{
-        name: [type: :string]
-      }} ]
-  }
-  ```
-
-  **Alias**
-  Alias allow set a new key for value when using with `Taram.cast`
-
-  ```elixir
-  schema = %{
-    email: [type: :string, as: :user_email]
-  }
-
-  Tarams.cast(%{email: "xx@yy.com"}, schema)
-  #> {:ok, %{user_email: "xx@yy.com"}}
-  ```
-
-
-  ## II. Field casting and default value
-
-  These specifications is used for casting data with `Tarams.Params.cast`
-
-  ### 1. Default value
-
-  Is used when the given field is missing or nil.
-
-  - Default could be a value
-
-    ```elixir
-    %{
-      status: [type: :string, default: "active"]
-    }
-    ```
-
-  - Or a `function/0`, this function will be invoke each time data is `casted`
-
-    ```elixir
-    %{
-      published_at: [type: :datetime, default: &DateTime.utc_now/0]
-    }
-    ```
-
-  ### 2. Custom cast function
-
-  You can provide a function to cast field value instead of using default casting function by using
-  `cast_func: <function/1>`
-
-  ```elixir
-  %{
-      published_at: [type: :datetime, cast_func: &DateTime.from_iso8601/1]
-  }
-  ```
-
-  ## III. Field validation
-
-  **These validation are supported by `Tarams.Validator`**
-
-  ### 1. Type validation
-
-  Type specification above could be used for validating or casting data.
-
-  ### 2. Numeric validation
-
-  Support validating number value. These are list of supported validations:
-
-    - `equal_to`
-    - `greater_than_or_equal_to` | `min`
-    - `greater_than`
-    - `less_than`
-    - `less_than_or_equal_to` | `max`
-
-   Define validation: `number: [<name>: <value>, ...]`
-
-  **Example**
-
-  ```elixir
-  %{
-    age: [type: :integer, number: [min: 1, max: 100]]
-  }
-  ```
-
-  ### 3. Length validation
-
-  Validate length of supported types include `string`, `array`, `map`, `tuple`, `keyword`.
-  Length condions are the same with **Numeric validation**
-
-  Define validation: `length: [<name>: <value>, ...]`
-
-  **Example**
-
-  ```elixir
-  %{
-    skills: [type: {:array, :string}, length: [min: 0, max: 5]]
-  }
-  ```
-
-
-  ### 4. Format validation
-
-  Check if a string match a given pattern.
-
-  Define validation: `format: <Regex>`
-
-  **Example**
-
-  ```elixir
-  %{
-    year: [type: :string, format: ~r/year:\s\d{4}/]
-  }
-  ```
-
-  ### 5. Inclusion and exclusion validation
-
-  Check if value is included or not included in given enumerable (`array`, `map`, or `keyword`)
-
-  Define validation: `in: <enumerable>` or `not_in: <enumerable>`
-
-  **Example**
-
-  ```elixir
-  %{
-    status: [type: :string, in: ["active", "inactive"]],
-    selected_option: [type: :integer, not_in: [2,3]]
-  }
-  ```
-
-  ### 6. Custom validation function
-
-  You can provide a function to validate the value.
-
-  Define validation: `func: <function>`
-
-  Function must be follow this signature
-
-  ```elixir
-  @spec func(value::any()) :: :ok | {:error, message::String.t()}
-  ```
+  Borrow from https://github.com/ejpcmac/typed_struct/blob/main/lib/typed_struct.ex
   """
+  @accumulating_attrs [
+    :ts_fields,
+    :ts_types,
+    :ts_enforce_keys
+  ]
 
+  @attrs_to_delete @accumulating_attrs
+
+  @doc false
   defmacro __using__(_) do
     quote do
-      import Tarams.DefSchema
+      import Skema.Schema, only: [def_schema: 1, def_schema: 2]
     end
   end
 
   @doc """
-  Expand short-hand type syntax to full syntax
+  Defines a typed struct.
 
-      field: :string -> field: [type: :string]
-      field: {:array, :string} -> field: [type: {:array, :string}]
-      field: %{#embedded} -> field: [type: %{#embedded}]
-  """
-  @spec expand(map()) :: map()
-  def expand(schema) do
-    schema
-    |> Enum.map(&expand_field/1)
-    |> Enum.into(%{})
-  end
+  Inside a `def_schema` block, each field is defined through the `field/2`
+  macro.
 
-  defp expand_field({field, type}) when is_atom(type) or is_map(type) do
-    expand_field({field, [type: type]})
-  end
+  ## Examples
 
-  defp expand_field({field, [type | tail]}) when is_atom(type) do
-    expand_field({field, [{:type, type} | tail]})
-  end
+      defmodule MyStruct do
+        use Skema.Schema
 
-  defp expand_field({field, {:array, type}}) do
-    {field, [type: {:array, expand_type(type)}]}
-  end
-
-  defp expand_field({field, attrs}) do
-    attrs =
-      if attrs[:type] do
-        Keyword.put(attrs, :type, expand_type(attrs[:type]))
-      else
-        attrs
+        def_schema do
+          field :field_one, :string
+          field :field_two, :integer, required: true
+          field :field_three, :boolean, required: true
+          field :field_four, :atom, default: :hey
+          field :update_time, :naive_datetime, default: &NaiveDateTime.utc_now/0
+        end
       end
 
-    attrs = Keyword.put(attrs, :default, expand_default(attrs[:default]))
+  You can create the struct in a submodule instead:
 
-    {field, attrs}
+      defmodule MyModule do
+        use Skema.Schema
+
+        def_schema Comment do
+          field :user_id, :integer, required: true
+          field :content, :string, required: true
+        end
+
+        def_schema Post do
+          field :field_one, :string
+          field :field_two, :integer, required: true
+          field :field_three, :boolean, required: true
+          field :field_four, :string, default: "hello"
+          field :update_time, :naive_datetime, default: &NaiveDateTime.utc_now/0
+          field :comment, Comment, required: true
+        end
+      end
+
+      MyModule.Post.cast(%{field_two: 1, field_three: true, comment: %{user_id: 1, content: "hello"}})
+
+  """
+  defmacro def_schema(module \\ nil, do: block) do
+    ast = Skema.Schema.__typedstruct__(block)
+    method_ast = Skema.Schema.__default_functions__()
+
+    case module do
+      nil ->
+        quote do
+          # Create a lexical scope.
+          (fn -> unquote(ast) end).()
+          unquote(method_ast)
+        end
+
+      module ->
+        quote do
+          defmodule unquote(module) do
+            unquote(ast)
+
+            unquote(method_ast)
+          end
+        end
+    end
   end
 
-  # expand nested schema
-  defp expand_type(%{} = type) do
-    expand(type)
+  def __default_functions__ do
+    quote do
+      def new(struct) when is_struct(struct) do
+        struct(__MODULE__, Map.from_struct(struct))
+      end
+
+      def new(map) do
+        struct(__MODULE__, map)
+      end
+
+      def cast(params) when is_map(params) do
+        case Skema.cast(params, @ts_fields) do
+          %{valid?: true, valid_data: data} -> {:ok, new(data)}
+          error -> {:error, error}
+        end
+      end
+
+      def validate(params) do
+        case Skema.validate(params, @ts_fields) do
+          %{valid?: true} -> :ok
+          error -> {:error, error}
+        end
+      end
+
+      def cast_and_validate(params) do
+        params
+        |> Skema.cast(@ts_fields)
+        |> Skema.validate()
+        |> case do
+          %{valid?: true, valid_data: data} -> {:ok, new(data)}
+          error -> {:error, error}
+        end
+      end
+
+      def __schema__(:fields) do
+        @ts_fields
+      end
+    end
   end
 
-  defp expand_type(type), do: type
+  @doc false
+  def __typedstruct__(block) do
+    quote do
+      @before_compile {unquote(__MODULE__), :__before_compile__}
 
-  defp expand_default(default) when is_function(default, 0) do
-    default.()
+      import Skema.Schema
+
+      Enum.each(unquote(@accumulating_attrs), fn attr ->
+        Module.register_attribute(__MODULE__, attr, accumulate: true)
+      end)
+
+      unquote(block)
+
+      @enforce_keys @ts_enforce_keys
+      defstruct @ts_fields
+
+      Skema.Schema.__type__(@ts_types)
+    end
   end
 
-  defp expand_default(default), do: default
+  @doc false
+  defmacro __type__(types) do
+    quote bind_quoted: [types: types] do
+      @type t() :: %__MODULE__{unquote_splicing(types)}
+    end
+  end
+
+  @doc """
+  Defines a field in a typed struct.
+
+  ## Example
+
+      # A field named :example of type String.t()
+      field :example, String.t()
+
+  ## Options
+
+    * `default` - sets the default value for the field
+    * `enforce` - if set to true, enforces the field and makes its type
+      non-nullable
+  """
+  defmacro field(name, type, opts \\ []) do
+    quote bind_quoted: [name: name, type: type, opts: opts] do
+      Skema.Schema.__field__(name, type, opts, __ENV__)
+    end
+  end
+
+  @doc false
+  def __field__(name, type, opts, %Macro.Env{module: mod}) when is_atom(name) do
+    if mod |> Module.get_attribute(:ts_fields) |> Keyword.has_key?(name) do
+      raise ArgumentError, "the field #{inspect(name)} is already set"
+    end
+
+    has_default? = Keyword.has_key?(opts, :default)
+
+    enforce? =
+      if is_nil(opts[:required]),
+        do: not has_default?,
+        else: opts[:required] == true
+
+    nullable? = not has_default? and not enforce?
+
+    Module.put_attribute(mod, :ts_fields, {name, [{:type, type} | opts]})
+    Module.put_attribute(mod, :ts_types, {name, type_for(type, nullable?)})
+    if enforce?, do: Module.put_attribute(mod, :ts_enforce_keys, name)
+  end
+
+  def __field__(name, _type, _opts, _env) do
+    raise ArgumentError, "a field name must be an atom, got #{inspect(name)}"
+  end
+
+  # Makes the type nullable if the key is not enforced.
+  defp type_for(type, false), do: type
+  defp type_for(type, _), do: quote(do: unquote(type) | nil)
+
+  @doc false
+  defmacro __before_compile__(%Macro.Env{module: module}) do
+    Enum.each(unquote(@attrs_to_delete), &Module.delete_attribute(module, &1))
+  end
 end

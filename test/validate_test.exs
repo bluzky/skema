@@ -1,10 +1,12 @@
 defmodule ValidateTest.User do
+  @moduledoc false
   defstruct name: nil, email: nil
 
   def dumb(_), do: nil
 end
 
 defmodule ValidateTest do
+  @moduledoc false
   use ExUnit.Case
 
   alias ValidateTest.User
@@ -39,13 +41,9 @@ defmodule ValidateTest do
     [{:array, User}, %{}, :error]
   ]
 
-  test "validate type" do
-    @type_checks
-    |> Enum.each(fn [type, value, expect] ->
-      rs =
-        Tarams.validate(%{"key" => value}, %{
-          "key" => type
-        })
+  test "validate_apply type" do
+    Enum.each(@type_checks, fn [type, value, expect] ->
+      rs = Skema.validate_apply(%{"key" => value}, %{"key" => type})
 
       if expect == :ok do
         assert :ok = rs
@@ -55,72 +53,72 @@ defmodule ValidateTest do
     end)
   end
 
-  test "validate require" do
+  test "validate_apply require" do
     assert :ok =
-             Tarams.validate(%{"key" => "a string"}, %{
+             Skema.validate_apply(%{"key" => "a string"}, %{
                "key" => [type: :string, required: true]
              })
   end
 
-  test "validate require with missing value" do
+  test "validate_apply require with missing value" do
     assert {:error, %{"key" => ["is required"]}} =
-             Tarams.validate(%{}, %{
+             Skema.validate_apply(%{}, %{
                "key" => [type: :string, required: true]
              })
   end
 
-  test "validate required with nil value" do
+  test "validate_apply required with nil value" do
     assert {:error, %{"key" => ["is required"]}} =
-             Tarams.validate(%{"key" => nil}, %{
+             Skema.validate_apply(%{"key" => nil}, %{
                "key" => [type: :string, required: true]
              })
   end
 
-  test "validate inclusion with valid value should ok" do
+  test "validate_apply inclusion with valid value should ok" do
     assert :ok =
-             Tarams.validate(%{key: "ok"}, %{
+             Skema.validate_apply(%{key: "ok"}, %{
                key: [type: :string, in: ~w(ok error)]
              })
   end
 
-  test "validate inclusion with invalid value should error" do
+  test "validate_apply inclusion with invalid value should error" do
     assert {:error, %{key: ["not be in the inclusion list"]}} =
-             Tarams.validate(%{key: "hello"}, %{
+             Skema.validate_apply(%{key: "hello"}, %{
                key: [type: :string, in: ~w(ok error)]
              })
   end
 
-  test "validate exclusion with valid value should ok" do
+  test "validate_apply exclusion with valid value should ok" do
     assert :ok =
-             Tarams.validate(%{key: "hello"}, %{
+             Skema.validate_apply(%{key: "hello"}, %{
                key: [type: :string, not_in: ~w(ok error)]
              })
   end
 
-  test "validate exclusion with invalid value should error" do
+  test "validate_apply exclusion with invalid value should error" do
     assert {:error, %{key: ["must not be in the exclusion list"]}} =
-             Tarams.validate(%{key: "ok"}, %{
+             Skema.validate_apply(%{key: "ok"}, %{
                key: [type: :string, not_in: ~w(ok error)]
              })
   end
 
-  test "validate format with match string should ok" do
+  test "validate_apply format with match string should ok" do
     assert :ok =
-             Tarams.validate(%{key: "year: 1999"}, %{
+             Skema.validate_apply(%{key: "year: 1999"}, %{
                key: [type: :string, format: ~r/year:\s\d{4}/]
              })
   end
 
-  test "validate format with not match string should error" do
+  test "validate_apply format with not match string should error" do
     assert {:error, %{key: ["does not match format"]}} =
-             Tarams.validate(%{key: ""}, %{
+             Skema.validate_apply(%{key: ""}, %{
                key: [type: :string, format: ~r/year:\s\d{4}/]
              })
   end
 
-  test "validate format with number should error" do
+  test "validate_apply format with number should error" do
     assert {:error, %{key: ["format check only support string"]}} =
-             Tarams.validate(%{key: 10}, %{
+             Skema.validate_apply(%{key: 10}, %{
                key: [type: :integer, format: ~r/year:\s\d{4}/]
              })
   end
@@ -147,10 +145,10 @@ defmodule ValidateTest do
     [:max, 10, 10, :ok],
     [:max, 10, 11, :error]
   ]
-  test "validate number" do
+  test "validate_apply number" do
     for [condition, value, actual_value, expect] <- @number_tests do
       rs =
-        Tarams.validate(%{key: actual_value}, %{
+        Skema.validate_apply(%{key: actual_value}, %{
           key: [type: :integer, number: [{condition, value}]]
         })
 
@@ -162,9 +160,9 @@ defmodule ValidateTest do
     end
   end
 
-  test "validate number with string should error" do
+  test "validate_apply number with string should error" do
     assert {:error, %{key: ["must be a number"]}} =
-             Tarams.validate(%{key: "magic"}, %{
+             Skema.validate_apply(%{key: "magic"}, %{
                key: [type: :string, number: [min: 10]]
              })
   end
@@ -192,10 +190,10 @@ defmodule ValidateTest do
     [:max, 10, "12312312345", :error]
   ]
 
-  test "validate length" do
+  test "validate_apply length" do
     for [condition, value, actual_value, expect] <- @length_tests do
       rs =
-        Tarams.validate(%{key: actual_value}, %{
+        Skema.validate_apply(%{key: actual_value}, %{
           key: [type: :string, length: [{condition, value}]]
         })
 
@@ -212,10 +210,10 @@ defmodule ValidateTest do
     [:map, 1, %{a: 1, b: 2}, :ok],
     [:tuple, 1, {1, 2}, :ok]
   ]
-  test "validate length with other types" do
+  test "validate_apply length with other types" do
     for [type, value, actual_value, expect] <- @length_type_tests do
       rs =
-        Tarams.validate(%{key: actual_value}, %{
+        Skema.validate_apply(%{key: actual_value}, %{
           key: [type: type, length: [{:greater_than, value}]]
         })
 
@@ -227,14 +225,14 @@ defmodule ValidateTest do
     end
   end
 
-  test "validate length for number should error" do
+  test "validate_apply length for number should error" do
     {:error, %{key: ["length check supports only lists, binaries, maps and tuples"]}} =
-      Tarams.validate(%{key: 10}, %{
+      Skema.validate_apply(%{key: 10}, %{
         key: [type: :number, length: [{:greater_than, 10}]]
       })
   end
 
-  test "validate nested map with success" do
+  test "validate_apply nested map with success" do
     data = %{name: "Doe John", address: %{city: "HCM", street: "NVL"}}
 
     schema = %{
@@ -246,10 +244,10 @@ defmodule ValidateTest do
     }
 
     assert :ok =
-             Tarams.validate(data, schema)
+             Skema.validate_apply(data, schema)
   end
 
-  test "validate nested map with bad value should error" do
+  test "validate_apply nested map with bad value should error" do
     data = %{name: "Doe John", address: "HCM"}
 
     schema = %{
@@ -262,10 +260,10 @@ defmodule ValidateTest do
       ]
     }
 
-    assert {:error, %{address: ["is invalid"]}} = Tarams.validate(data, schema)
+    assert {:error, %{address: ["is invalid"]}} = Skema.validate_apply(data, schema)
   end
 
-  test "validate nested map with bad nested value should error" do
+  test "validate_apply nested map with bad nested value should error" do
     data = %{name: "Doe John", address: %{city: "HCM", street: "NVL"}}
 
     schema = %{
@@ -278,10 +276,10 @@ defmodule ValidateTest do
       ]
     }
 
-    assert {:error, %{address: [%{city: ["is not a number"]}]}} = Tarams.validate(data, schema)
+    assert {:error, %{address: [%{city: ["is not a number"]}]}} = Skema.validate_apply(data, schema)
   end
 
-  test "validate nested map skip nested check if value nil" do
+  test "validate_apply nested map skip nested check if value nil" do
     data = %{name: "Doe John", address: nil}
 
     schema = %{
@@ -295,10 +293,10 @@ defmodule ValidateTest do
       ]
     }
 
-    assert :ok = Tarams.validate(data, schema)
+    assert :ok = Skema.validate_apply(data, schema)
   end
 
-  test "validate nested map skip nested check if key is missing" do
+  test "validate_apply nested map skip nested check if key is missing" do
     data = %{name: "Doe John"}
 
     schema = %{
@@ -312,10 +310,10 @@ defmodule ValidateTest do
       ]
     }
 
-    assert :ok = Tarams.validate(data, schema)
+    assert :ok = Skema.validate_apply(data, schema)
   end
 
-  test "validate array of nested map with valid value should ok" do
+  test "validate_apply array of nested map with valid value should ok" do
     data = %{name: "Doe John", address: [%{city: "HCM", street: "NVL"}]}
 
     schema = %{
@@ -330,10 +328,10 @@ defmodule ValidateTest do
       ]
     }
 
-    assert :ok = Tarams.validate(data, schema)
+    assert :ok = Skema.validate_apply(data, schema)
   end
 
-  test "validate array of nested map with invalid value should error" do
+  test "validate_apply array of nested map with invalid value should error" do
     data = %{name: "Doe John", address: [%{city: "HCM", street: "NVL"}]}
 
     schema = %{
@@ -348,10 +346,10 @@ defmodule ValidateTest do
       ]
     }
 
-    assert {:error, %{address: [%{city: ["is not a number"]}]}} = Tarams.validate(data, schema)
+    assert {:error, %{address: [%{city: ["is not a number"]}]}} = Skema.validate_apply(data, schema)
   end
 
-  def validate_email(_name, value, _params) do
+  def validate_apply_email(_name, value, _params) do
     if Regex.match?(~r/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,4}$/, value) do
       :ok
     else
@@ -359,19 +357,19 @@ defmodule ValidateTest do
     end
   end
 
-  test "validate with custom function ok with good value" do
+  test "validate_apply with custom function ok with good value" do
     assert :ok =
-             Tarams.validate(
+             Skema.validate_apply(
                %{email: "blue@hmail.com"},
-               %{email: [type: :string, func: &validate_email/3]}
+               %{email: [type: :string, func: &validate_apply_email/3]}
              )
   end
 
-  test "validate with custom function error with bad value" do
+  test "validate_apply with custom function error with bad value" do
     assert {:error, %{email: ["not a valid email"]}} =
-             Tarams.validate(
+             Skema.validate_apply(
                %{email: "blue@hmail"},
-               %{email: [type: :string, func: &validate_email/3]}
+               %{email: [type: :string, func: &validate_apply_email/3]}
              )
   end
 end
