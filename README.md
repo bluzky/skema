@@ -2,7 +2,7 @@
 
 Phoenix request params validation library.
 
-[![Build Status](https://github.com/bluzky/skema/workflows/Elixir%20CI/badge.svg)](https://github.com/bluzky/skema/actions) [![Coverage Status](https://coveralls.io/repos/github/bluzky/skema/badge.svg?branch=master)](https://coveralls.io/github/bluzky/skema?branch=master) [![Hex Version](https://img.shields.io/hexpm/v/skema.svg)](https://hex.pm/packages/skema) [![docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/skema/)
+[![Build Status](https://github.com/bluzky/skema/workflows/Elixir%20CI/badge.svg)](https://github.com/bluzky/skema/actions) [![Coverage Status](https://coveralls.io/repos/github/bluzky/skema/badge.svg?branch=main)](https://coveralls.io/github/bluzky/skema?branch=main) [![Hex Version](https://img.shields.io/hexpm/v/skema.svg)](https://hex.pm/packages/skema) [![docs](https://img.shields.io/badge/docs-hexpm-blue.svg)](https://hexdocs.pm/skema/)
 
 
 
