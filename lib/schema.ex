@@ -95,25 +95,19 @@ defmodule Skema.Schema do
 
       def cast(params) when is_map(params) do
         case Skema.cast(params, @ts_fields) do
-          %{valid?: true, valid_data: data} -> {:ok, new(data)}
-          error -> {:error, error}
+          {:ok, data} -> {:ok, new(data)}
+          error -> error
         end
       end
 
       def validate(params) do
-        case Skema.validate(params, @ts_fields) do
-          %{valid?: true} -> :ok
-          error -> {:error, error}
-        end
+        Skema.validate(params, @ts_fields)
       end
 
       def cast_and_validate(params) do
-        params
-        |> Skema.cast(@ts_fields)
-        |> Skema.validate()
-        |> case do
-          %{valid?: true, valid_data: data} -> {:ok, new(data)}
-          error -> {:error, error}
+        case Skema.cast_and_validate(params, @ts_fields) do
+          {:ok, data} -> {:ok, new(data)}
+          error -> error
         end
       end
 

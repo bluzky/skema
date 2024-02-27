@@ -40,14 +40,21 @@ defmodule Skema do
   def cast_and_validate(data, schema) do
     schema = Skema.SchemaHelper.expand(schema)
 
-    [schema: schema, params: data]
-    |> Result.new()
-    |> cast()
-    |> validate()
-    |> transform()
-    |> case do
-      %Result{valid?: true, valid_data: valid_data} -> {:ok, valid_data}
-      %{errors: errors} -> {:error, errors}
+    result =
+      [schema: schema, params: data]
+      |> Result.new()
+      |> cast()
+
+    with {_, {:ok, data}} <- {:cast, result},
+         {_, :ok} <- {:validate, validate(data, schema)} do
+      {:ok, data}
+    else
+      {:cast, {:error, result}} ->
+        # valiate valid data to get more detail error
+        validate(result)
+
+      {:validate, error} ->
+        error
     end
   end
 
@@ -55,23 +62,6 @@ defmodule Skema do
     case cast_and_validate(data, schema) do
       {:ok, value} -> value
       _ -> raise "Skema :: bad input data"
-    end
-  end
-
-  @doc """
-  Cast and validate params with given schema.
-  """
-  @spec cast_apply(data :: map(), schema :: map()) ::
-          %Skema.Result{}
-  def cast_apply(data, schema) when is_map(data) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    [schema: schema, params: data]
-    |> Result.new()
-    |> cast()
-    |> case do
-      %{valid?: true, valid_data: data} -> {:ok, data}
-      %{errors: errors} -> {:error, errors}
     end
   end
 
@@ -84,28 +74,19 @@ defmodule Skema do
     |> cast()
   end
 
-  @spec cast(%Skema.Result{}) :: %Skema.Result{}
   defp cast(%Result{} = result) do
-    Enum.reduce(result.schema, result, fn field, acc ->
-      case cast_field(acc.params, field) do
-        {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
-        {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
-      end
-    end)
-  end
+    result =
+      Enum.reduce(result.schema, result, fn field, acc ->
+        case cast_field(acc.params, field) do
+          {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
+          {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
+        end
+      end)
 
-  @doc """
-  Validate params with given schema.
-  """
-  def validate_apply(data, schema) when is_map(data) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    [schema: schema, params: data, valid_data: data]
-    |> Result.new()
-    |> validate()
-    |> case do
-      %Result{valid?: true} -> :ok
-      %{errors: errors} -> {:error, errors}
+    if result.valid? do
+      {:ok, result.valid_data}
+    else
+      {:error, result}
     end
   end
 
@@ -118,31 +99,23 @@ defmodule Skema do
   end
 
   def validate(%Result{} = result) do
-    Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
-      # skip if there is an error
-      if Result.get_error(acc, field_name) do
-        acc
-      else
-        case validate_field(acc.valid_data, field) do
-          :ok -> acc
-          {:error, error} -> Result.put_error(acc, field_name, error)
+    result =
+      Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
+        if Result.get_error(acc, field_name) do
+          acc
+        else
+          case validate_field(acc.valid_data, field) do
+            :ok -> acc
+            {:error, error} -> Result.put_error(acc, field_name, error)
+          end
         end
-      end
-    end)
-  end
+      end)
 
-  @doc """
-  Transform params with given schema.
-  """
-  def transform_apply(data, schema) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    [schema: schema, params: data, valid_data: data]
-    |> Result.new()
-    |> transform()
-    |> case do
-      %Result{valid?: true, valid_data: valid_data} -> {:ok, valid_data}
-      %{errors: errors} -> {:error, errors}
+    # skip if there is an error
+    if result.valid? do
+      :ok
+    else
+      {:error, result}
     end
   end
 
@@ -155,17 +128,24 @@ defmodule Skema do
   end
 
   def transform(%Result{} = result) do
-    Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
-      # skip if there is an error
-      if Result.get_error(acc, field_name) do
-        acc
-      else
-        case transform_field(acc.valid_data, field) do
-          {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
-          {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
+    result =
+      Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
+        # skip if there is an error
+        if Result.get_error(acc, field_name) do
+          acc
+        else
+          case transform_field(acc.valid_data, field) do
+            {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
+            {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
+          end
         end
-      end
-    end)
+      end)
+
+    if result.valid? do
+      {:ok, result.valid_data}
+    else
+      {:error, result}
+    end
   end
 
   ## cast schema logic
@@ -240,13 +220,7 @@ defmodule Skema do
 
   # cast nested map
   defp cast_value(value, %{} = type) when is_map(value) do
-    case cast(value, type) do
-      %Result{valid?: true, valid_data: valid_data} ->
-        {:ok, valid_data}
-
-      %{errors: errors} ->
-        {:error, errors}
-    end
+    cast(value, type)
   end
 
   defp cast_value(_, %{}), do: :error
@@ -305,7 +279,7 @@ defmodule Skema do
   defp do_validate(_, value, _, {:type, type}) when is_map(type) do
     # validate nested map
     if is_map(value) do
-      validate_apply(value, type)
+      validate(value, type)
     else
       {:error, "is invalid"}
     end
@@ -348,7 +322,7 @@ defmodule Skema do
     summary =
       Enum.reduce(results, {:ok, []}, fn
         :ok, acc -> acc
-        {:error, %Skema.Result{errors: errors}}, {_, acc_msg} -> {:error, [[errors] | acc_msg]}
+        {:error, %Skema.Result{} = result}, {_, acc_msg} -> {:error, [[result] | acc_msg]}
         {:error, msg}, {_, acc_msg} when is_list(msg) -> {:error, [msg | acc_msg]}
         {:error, msg}, {_, acc_msg} -> {:error, [[msg] | acc_msg]}
       end)

@@ -48,7 +48,7 @@ defmodule DefSchemaTest do
       assert {:ok, casted_data} =
                UserNestedModel.cast(data)
 
-      assert {:error, %{errors: %{user: [%{email: ["length must be greater than or equal to 5"]}]}}} =
+      assert {:error, %{errors: %{user: [%{errors: %{email: ["length must be greater than or equal to 5"]}}]}}} =
                UserNestedModel.validate(casted_data)
     end
 
@@ -62,7 +62,7 @@ defmodule DefSchemaTest do
       assert {:ok, casted_data} =
                UserNestedModel.cast(data)
 
-      assert {:error, %{errors: %{user: [%{name: ["is required"]}]}}} =
+      assert {:error, %{errors: %{user: [%{errors: %{name: ["is required"]}}]}}} =
                UserNestedModel.validate(casted_data)
     end
 
@@ -118,7 +118,14 @@ defmodule DefSchemaTest do
       assert {:ok, casted} = UserListModel.cast(data)
 
       assert {:error,
-              %{errors: %{users: [%{name: ["is required"]}, %{email: ["length must be greater than or equal to 5"]}]}}} =
+              %{
+                errors: %{
+                  users: [
+                    %{errors: %{name: ["is required"]}},
+                    %{errors: %{email: ["length must be greater than or equal to 5"]}}
+                  ]
+                }
+              }} =
                UserListModel.validate(casted)
     end
 
