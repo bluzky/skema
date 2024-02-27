@@ -1,40 +1,6 @@
-defmodule DefSchemaTest.StringList do
-  @moduledoc false
-  defstruct values: []
-
-  def cast(value) when is_binary(value) do
-    rs =
-      value
-      |> String.split(",")
-      |> Enum.reject(&(&1 in [nil, ""]))
-
-    {:ok, %__MODULE__{values: rs}}
-  end
-
-  def cast(_), do: :error
-end
-
-defmodule DefSchemaTest.User do
-  @moduledoc false
-  defstruct [:name]
-
-  def new(name) do
-    %__MODULE__{name: name}
-  end
-
-  def cast(%{name: name}) do
-    {:ok, new(name)}
-  end
-
-  def cast(_), do: :error
-end
-
 defmodule DefSchemaTest do
   use ExUnit.Case
-  use Skema.Schema
-
-  alias DefSchemaTest.StringList
-  alias DefSchemaTest.User
+  use Skema
 
   describe "Skema.cast_and_validate" do
     defschema UserModel do

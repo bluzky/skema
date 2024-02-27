@@ -13,7 +13,7 @@ defmodule Skema.Schema do
   @doc false
   defmacro __using__(_) do
     quote do
-      import Skema.Schema, only: [defschema: 1, def_schema: 2]
+      import Skema.Schema, only: [defschema: 1, defschema: 2]
     end
   end
 
