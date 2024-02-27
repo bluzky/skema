@@ -6,6 +6,13 @@ defmodule Skema do
   alias Skema.Result
   alias Skema.Type
 
+  @doc false
+  defmacro __using__(_) do
+    quote do
+      import Skema.Schema, only: [defschema: 1, def_schema: 2]
+    end
+  end
+
   @doc """
   Cast and validate params with given schema.
   See `Skema.SchemaHelper` for instruction on how to define a schema

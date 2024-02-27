@@ -14,12 +14,8 @@ Phoenix request params validation library.
         - [Default value](#default-value)
         - [Custom cast function](#custom-cast-function)
             - [1. Custom cast function accept value only](#1-custom-cast-fuction-accept-value-only)
-            - [2. Custom cast function accept value and current object](#2-custom-cast-function-accept-value-and-current-object)
-            - [3.Custom cast function accept tuple {M, f}](#3custom-cast-function-accept-tuple-m-f)
+            - [2.Custom cast function accept tuple {M, f}](#3custom-cast-function-accept-tuple-m-f)
         - [Nested schema](#nested-schema)
-    - [Transform data](#transform-data)
-        - [Field name alias](#field-name-alias)
-        - [Convert data](#convert-data)
     - [Validation](#validation)
     - [Contributors](#contributors)
 
@@ -39,7 +35,7 @@ by adding `skema` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:skema, "~> 1.0.0"}
+    {:skema, "~> 0.1"}
   ]
 end
 ```
@@ -50,15 +46,16 @@ end
 > Cast data -> validate casted data -> transform data
 
 ```elixir
-@index_params_schema  %{
-    keyword: :string,
-    status: [type: :string, required: true],
-    group_id: [type: :integer, number: [greater_than: 0]],
-    name: [type: :string, from: :another_field]
-  }
+use Skema
+defschema IndexParams do
+    field :keyword, :string
+    field :status, :string, required: true
+    field :group_id, :integer, number: [greater_than: 0]
+    field :name, :string
+end
 
 def index(conn, params) do
-    with {:ok, better_params} <- Skema.cast(params, @index_params_schema) do
+    with {:ok, better_params} <- IndexParams.cast(params) do
         # do anything with your params
     else
         {:error, errors} -> # return params error
@@ -69,17 +66,23 @@ end
 
 ## Define schema
 
-Schema is just a map and it can be nested. Each field is defined as
+```elixir
+use Skema
 
-`<field_name>: [<field_spec>, ...]`
+defschema IndexParams do
+    field :keyword, :string
+    field :status, :string, required: true
+    field :group_id, :integer, number: [greater_than: 0]
+    field :name, :string
+end
+```
 
-Or short form
+Define a field using macro `@spec field(field_name :: atom(), type :: term(), opts \\ [])`
 
-`<field_name>: <type>`
+- `type`: `Skema` support same data type as `Ecto`. I borrowed code from Ecto
 
-Field specs is a keyword list thay may include:
+Supported options:
 
-- `type` is required, `Skema` support same data type as `Ecto`. I borrowed code from Ecto
 - `default`: default value or default function
 - `cast_func`: custom cast function
 - `number, format, length, in, not_in, func, required, each` are available validations
@@ -91,17 +94,13 @@ Field specs is a keyword list thay may include:
 You can define a default value for a field if it's missing from the params.
 
 ```elixir
-schema = %{
-    status: [type: :string, default: "pending"]
-}
+field :status, :string, default: "pending"
 ```
 
 Or you can define a default value as a function. This function is evaluated when `Skema.cast` gets invoked.
 
 ```elixir
-schema = %{
-    date: [type: :utc_datetime, default: &Timex.now/0]
-}
+field :date, :utc_datetime, default: &Timex.now/0
 ```
 
 ### Custom cast function
@@ -127,86 +126,29 @@ def my_array_parser(value) do
     end
 end
 
-schema = %{
-    user_id: [type: {:array, :integer}, cast_func: &my_array_parser/1]
-}
+defschema Sample do
+   field :user_id, {:array, :integer}, cast_func: &my_array_parser/1
+end
 
-Skema.cast(%{user_id: "1,2,3"}, schema)
 ```
 This is a demo parser function.
-
-#### 2. Custom cast function accept value and current object
-
-```elixir
-data = %{
-   name: "tada",
-   bold: true
-}
-
-schema = %{
-    name: [type: :string, cast_func: fn value, data -> 
-        {:ok, (if data.bold, do: String.upcase(value), else: value)}
-    end]
-}
-
-Skema.cast(data, schema)
-
-# > %{name: "TADA"}
-```
-
-#### 3.Custom cast function accept tuple {M, f}
-
-Your cast function must accept 2 arguments
-
-```elixir
-defmodule MyModule do
-    def upcase(value, data) do
-        {:ok, (if data.bold, do: String.upcase(value), else: value)}
-    end
-end
-```
-
-```elixir
-data = %{
-   name: "tada",
-   bold: true
-}
-
-schema = %{
-    name: [type: :string, cast_func: {MyModule, :upcase}]
-}
-
-Skema.cast(data, schema)
-
-# > %{name: "TADA"}
-```
 
 
 ### Nested schema
 With `Skema` you can parse and validate nested map and list easily
 
 ```elixir
-@my_schema %{
-    status: :string,
-    pagination: %{
-        page: [type: :integer, number: [min: 1]],
-        size: [type: :integer, number: [min: 10, max: 100"]]
-    }
-}
-```
+defschema Address do
+    field :street, :string
+    field :district, :string
+    field :city, :string
+end
 
-Or nested list schema
-
-```elixir
-@user_schema %{
-    name: :string,
-    email: [type: :string, required: true]
-    addresses: [type: {:array, %{
-        street: :string,
-        district: :string,
-        city: :string
-    }}]
-}
+defschema User do
+    field :name, :string,
+    field :email, :string, required: true
+    field :addresses, {:array, Address}
+end
 ```
 
 
@@ -226,17 +168,14 @@ Basically it supports following validation
 
 
   ```elixir
-  product_schema = %{
-    sku: [type: :string, required: true, length: [min: 6, max: 20]]
-    name: [type: :string, required: true],
-    quantity: [type: :integer, number: [min: 0]],
-    type: [type: :string, in: ~w(physical digital)],
-    expiration_date: [type: :naive_datetime, func: &my_validation_func/1],
-    # dynamic required
-    width: [type: :integer, required: fn value, data -> data.type == "physical" end],
-    # validate each array item
-    tags: [type: {:array, :string}, each: [length: [max: 50]]]
-  }
+defschema Product do
+    field :sku, :string, required: true, length: [min: 6, max: 20]
+    field :name, :string, required: true,
+    field :quantity, :integer, number: [min: 0],
+    field :type: :string, in: ~w(physical digital),
+    field :expiration_date, :naive_datetime, func: &my_validation_func/1,
+    field :tags, {:array, :string}, each: [length: [max: 50]]
+end
   ```
 
 ### Dynamic required
@@ -249,68 +188,17 @@ def require_email?(value, data), do: is_nil(email.phone)
 
 ....
 
-%{
-    phone: :string
-    name: [type: :string, required: fn value, data -> true end],
-    email: [type: :string, required: {__MODULE__, :require_email?}]
-}
+field :email, :string, required: {__MODULE__, :require_email?}
 ```
 
 ### Validate array item
 Support validate array item with `:each` option, `each` accept a list of validators
 
 ```elixir
-%{
-    values: [type: {:array, :number}, each: [number: [min: 20, max: 50]]]
-  }
+...
+    field :values, {:array, :number}, each: [number: [min: 20, max: 50]]
+...
 ```
 
-
-
-## Transform data
-
-### Field name alias
-
-You can set alias name for schema fields
-```elixir
-data = %{
-   name: "tada"
-}
-
-schema = %{
-    name: [type: :string, as: :full_name]
-}
-
-Skema.cast(data, schema)
-
-# > %{full_name: "tada"}
-```
-
-### Convert data
-
-You can specify a function similar to `cast_func` to manipulate data after casted.
-However data object passed to transform function is original data before casting.
-
-```elixir
-data = %{status: 10}
-
-schema = %{
-    name: [type: :string, into: fn value -> {:ok, "name: #{value}}" end]
-}
-
-Skema.cast(data, schema)
-# > %{name: "name: tada"}
-
-```
-
-- Transform function can return tuple `{:ok, value}`, `{:error, message}` or value directly.
-
-```elixir
-schema = %{
-    value: [type: :integer, into: &to_string/1]
-}
-```
-  
-
-## Contributors
+## Thank you
 If you find a bug or want to improve something, please send a pull request. Thank you!

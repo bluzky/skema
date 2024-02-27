@@ -37,13 +37,13 @@ defmodule DefSchemaTest do
   alias DefSchemaTest.User
 
   describe "Skema.cast_and_validate" do
-    def_schema UserModel do
+    defschema UserModel do
       field(:name, :string, required: true)
       field(:email, :string, length: [min: 5])
       field(:age, :integer)
     end
 
-    def_schema UserNestedModel do
+    defschema UserNestedModel do
       field(:user, UserModel)
     end
 
@@ -100,7 +100,7 @@ defmodule DefSchemaTest do
                UserNestedModel.validate(casted_data)
     end
 
-    def_schema UserListModel do
+    defschema UserListModel do
       field(:users, {:array, UserModel})
     end
 
@@ -156,12 +156,12 @@ defmodule DefSchemaTest do
                UserListModel.validate(casted)
     end
 
-    def_schema UserModel2 do
+    defschema UserModel2 do
       field(:age, :integer, number: [min: 10])
       field(:hobbies, {:array, :string})
     end
 
-    def_schema UserRoleModel do
+    defschema UserRoleModel do
       field(:user, UserModel2)
       field(:id, :integer)
     end

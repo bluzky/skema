@@ -13,14 +13,14 @@ defmodule Skema.Schema do
   @doc false
   defmacro __using__(_) do
     quote do
-      import Skema.Schema, only: [def_schema: 1, def_schema: 2]
+      import Skema.Schema, only: [defschema: 1, def_schema: 2]
     end
   end
 
   @doc """
   Defines a typed struct.
 
-  Inside a `def_schema` block, each field is defined through the `field/2`
+  Inside a `defschema` block, each field is defined through the `field/2`
   macro.
 
   ## Examples
@@ -28,7 +28,7 @@ defmodule Skema.Schema do
       defmodule MyStruct do
         use Skema.Schema
 
-        def_schema do
+        defschema do
           field :field_one, :string
           field :field_two, :integer, required: true
           field :field_three, :boolean, required: true
@@ -42,12 +42,12 @@ defmodule Skema.Schema do
       defmodule MyModule do
         use Skema.Schema
 
-        def_schema Comment do
+        defschema Comment do
           field :user_id, :integer, required: true
           field :content, :string, required: true
         end
 
-        def_schema Post do
+        defschema Post do
           field :field_one, :string
           field :field_two, :integer, required: true
           field :field_three, :boolean, required: true
@@ -60,7 +60,7 @@ defmodule Skema.Schema do
       MyModule.Post.cast(%{field_two: 1, field_three: true, comment: %{user_id: 1, content: "hello"}})
 
   """
-  defmacro def_schema(module \\ nil, do: block) do
+  defmacro defschema(module \\ nil, do: block) do
     ast = Skema.Schema.__typedstruct__(block)
     method_ast = Skema.Schema.__default_functions__()
 
