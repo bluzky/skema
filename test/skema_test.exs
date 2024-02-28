@@ -168,16 +168,6 @@ defmodule ParamTest do
                )
     end
 
-    test "Skema.cast_and_validate! success" do
-      assert %{number: 10} = Skema.cast_and_validate!(%{number: "10"}, %{number: :integer})
-    end
-
-    test "Skema.cast_and_validate! raise exception" do
-      assert_raise RuntimeError, fn ->
-        Skema.cast_and_validate!(%{number: 10}, %{number: {:array, :string}})
-      end
-    end
-
     test "cast_and_validate with from" do
       schema = %{
         user_email: [type: :string, from: :email]

@@ -104,13 +104,6 @@ defmodule Skema.Schema do
         Skema.validate(params, @ts_fields)
       end
 
-      def cast_and_validate(params) do
-        case Skema.cast_and_validate(params, @ts_fields) do
-          {:ok, data} -> {:ok, new(data)}
-          error -> error
-        end
-      end
-
       def __fields__ do
         @ts_fields
       end

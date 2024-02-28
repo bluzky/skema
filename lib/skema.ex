@@ -35,29 +35,10 @@ defmodule Skema do
   ```
   """
 
-  defp schema_mod?(module) do
-    function_exported?(module, :__fields__, 0)
-  end
-
-  defp prepare_schema(schema) do
-    if schema_mod?(schema) do
-      {schema.__fields__(), schema}
-    else
-      {schema, nil}
-    end
-  end
-
   @spec cast_and_validate(data :: map(), schema :: map()) ::
           {:ok, map()} | {:error, errors :: map()}
   def cast_and_validate(data, schema) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    result =
-      [schema: schema, params: data]
-      |> Result.new()
-      |> cast()
-
-    with {_, {:ok, data}} <- {:cast, result},
+    with {_, {:ok, data}} <- {:cast, cast(data, schema)},
          {_, :ok} <- {:validate, validate(data, schema)} do
       {:ok, data}
     else
@@ -70,10 +51,10 @@ defmodule Skema do
     end
   end
 
-  def cast_and_validate!(data, schema) do
-    case cast_and_validate(data, schema) do
-      {:ok, value} -> value
-      _ -> raise "Skema :: bad input data"
+  def cast(data, schema) when is_atom(schema) do
+    case cast(data, schema.__fields__()) do
+      {:ok, data} -> {:ok, struct(schema, data)}
+      error -> error
     end
   end
 
@@ -100,6 +81,10 @@ defmodule Skema do
     else
       {:error, result}
     end
+  end
+
+  def validate(data, schema) when is_atom(schema) do
+    validate(data, schema.__fields__())
   end
 
   def validate(data, schema) when is_map(data) do
