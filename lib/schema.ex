@@ -111,7 +111,7 @@ defmodule Skema.Schema do
         end
       end
 
-      def __schema__(:fields) do
+      def __fields__ do
         @ts_fields
       end
     end

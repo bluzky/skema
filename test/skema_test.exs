@@ -152,7 +152,7 @@ defmodule ParamTest do
       assert {:ok, %{number: 10}} = Skema.cast_and_validate(%{number: "10"}, %{number: :integer})
 
       assert {:ok, %{number: 10}} =
-               Skema.cast_and_validate(%{number: "10"}, %{number: [:integer, number: [min: 5]]})
+               Skema.cast_and_validate(%{number: "10"}, %{number: [type: :integer, number: [min: 5]]})
     end
 
     test "cast_and_validate mixed keys atom and string" do

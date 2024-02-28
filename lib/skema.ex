@@ -35,6 +35,18 @@ defmodule Skema do
   ```
   """
 
+  defp schema_mod?(module) do
+    function_exported?(module, :__fields__, 0)
+  end
+
+  defp prepare_schema(schema) do
+    if schema_mod?(schema) do
+      {schema.__fields__(), schema}
+    else
+      {schema, nil}
+    end
+  end
+
   @spec cast_and_validate(data :: map(), schema :: map()) ::
           {:ok, map()} | {:error, errors :: map()}
   def cast_and_validate(data, schema) do
