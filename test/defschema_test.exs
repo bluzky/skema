@@ -22,7 +22,8 @@ defmodule DefSchemaTest do
         }
       }
 
-      assert {:ok, %UserNestedModel{user: %UserModel{name: "D", email: "d@h.com", age: 10}}} = UserNestedModel.cast(data)
+      assert {:ok, %UserNestedModel{user: %UserModel{name: "D", email: "d@h.com", age: 10}}} =
+               Skema.cast(data, UserNestedModel)
     end
 
     test "cast with no value should default to nil and skip validation" do
@@ -33,7 +34,7 @@ defmodule DefSchemaTest do
         }
       }
 
-      assert {:ok, %{user: %{email: nil}}} = UserNestedModel.cast(data)
+      assert {:ok, %{user: %{email: nil}}} = Skema.cast(data, UserNestedModel)
     end
 
     test "cast_and_validate embed validation invalid should error" do
@@ -46,10 +47,10 @@ defmodule DefSchemaTest do
       }
 
       assert {:ok, casted_data} =
-               UserNestedModel.cast(data)
+               Skema.cast(data, UserNestedModel)
 
-      assert {:error, %{errors: %{user: [%{email: ["length must be greater than or equal to 5"]}]}}} =
-               UserNestedModel.validate(casted_data)
+      assert {:error, %{errors: %{user: [%{errors: %{email: ["length must be greater than or equal to 5"]}}]}}} =
+               Skema.validate(casted_data, UserNestedModel)
     end
 
     test "cast_and_validate missing required value should error" do
@@ -60,10 +61,10 @@ defmodule DefSchemaTest do
       }
 
       assert {:ok, casted_data} =
-               UserNestedModel.cast(data)
+               Skema.cast(data, UserNestedModel)
 
-      assert {:error, %{errors: %{user: [%{name: ["is required"]}]}}} =
-               UserNestedModel.validate(casted_data)
+      assert {:error, %{errors: %{user: [%{errors: %{name: ["is required"]}}]}}} =
+               Skema.validate(casted_data, UserNestedModel)
     end
 
     defschema UserListModel do
@@ -89,7 +90,7 @@ defmodule DefSchemaTest do
         "users" => []
       }
 
-      assert {:ok, %{users: []}} = UserListModel.cast(data)
+      assert {:ok, %{users: []}} = Skema.cast(data, UserListModel)
     end
 
     test "cast_and_validate nil array embed should ok" do
@@ -97,7 +98,7 @@ defmodule DefSchemaTest do
         "users" => nil
       }
 
-      assert {:ok, %{users: nil}} = UserListModel.cast(data)
+      assert {:ok, %{users: nil}} = Skema.cast(data, UserListModel)
     end
 
     test "cast_and_validate array embed with invalid value should error" do
@@ -115,11 +116,15 @@ defmodule DefSchemaTest do
         ]
       }
 
-      assert {:ok, casted} = UserListModel.cast(data)
-
       assert {:error,
-              %{errors: %{users: [%{name: ["is required"]}, %{email: ["length must be greater than or equal to 5"]}]}}} =
-               UserListModel.validate(casted)
+              %{
+                errors: %{
+                  users: [
+                    %{errors: %{name: ["is required"]}},
+                    %{errors: %{email: ["length must be greater than or equal to 5"]}}
+                  ]
+                }
+              }} = Skema.cast_and_validate(data, UserListModel)
     end
 
     defschema UserModel2 do
@@ -145,11 +150,11 @@ defmodule DefSchemaTest do
                   },
                   id: ["is invalid"]
                 }
-              }} = UserRoleModel.cast_and_validate(params)
+              }} = Skema.cast_and_validate(params, UserRoleModel)
     end
 
     test "return error when given map for array type" do
-      assert {:error, %{errors: %{users: ["is invalid"]}}} = UserListModel.cast(%{users: %{}})
+      assert {:error, %{errors: %{users: ["is invalid"]}}} = Skema.cast(%{users: %{}}, UserListModel)
     end
   end
 end

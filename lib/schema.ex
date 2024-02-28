@@ -1,6 +1,131 @@
 defmodule Skema.Schema do
   @moduledoc """
   Borrow from https://github.com/ejpcmac/typed_struct/blob/main/lib/typed_struct.ex
+
+  Schema specifications:
+  Internal presentation of a schema is just a map with field names as keys and field options as values.
+
+  **Example**
+
+  ```elixir
+  %{
+    name: [type: :string, format: ~r/\d{4}/],
+    age: [type: :integer, number: [min: 15, max: 50]].
+    skill: [type: {:array, :string}, length: [min: 1, max: 10]]
+  }
+  ```
+
+  ## I. Field type
+
+  **Built-in types**
+
+  A type could be any of built-in supported types:
+
+  - `boolean`
+  - `string` | `binary`
+  - `integer`
+  - `float`
+  - `number` (integer or float)
+  - `date`
+  - `time`
+  - `datetime` | `utc_datetime`: date time with time zone
+  - `naive_datetime`: date time without time zone
+  - `map`
+  - `keyword`
+  - `{array, type}` array of built-in type, all item must be the same type
+
+
+  **Other types**
+  Custom type may be supported depends on module.
+
+  **Nested types**
+  Nested types could be a another **schema** or list of **schema**
+
+
+  ```elixir
+  %{
+    user: [type: %{
+        name: [type: :string]
+      }]
+  }
+  ```
+
+  Or list of schema
+
+  ```elixir
+  %{
+    users: [type: {:array, %{
+        name: [type: :string]
+      }} ]
+  }
+  ```
+
+  ## II. Field casting and default value
+
+  These specifications is used for casting data with `Skema.Params.cast`
+
+  ### 1. Default value
+
+  Is used when the given field is missing or nil.
+
+  - Default could be a value
+
+    ```elixir
+    %{
+      status: [type: :string, default: "active"]
+    }
+    ```
+
+  - Or a `function/0`, this function will be invoke each time data is `casted`
+
+    ```elixir
+    %{
+      published_at: [type: :datetime, default: &DateTime.utc_now/0]
+    }
+    ```
+
+  ### 2. Custom cast function
+
+  You can provide a function to cast field value instead of using default casting function by using
+  `cast_func: <function/1>`
+
+  ```elixir
+  %{
+      published_at: [type: :datetime, cast_func: &DateTime.from_iso8601/1]
+  }
+  ```
+
+  ## III. Field validation
+
+  **These validation are supported by [valdi](https://hex.pm/packages/valdi)**
+
+  **Custom validation function**
+
+  You can provide a function to validate the value.
+
+  Define validation: `func: <function>`
+
+  Function must be follow this signature
+
+  ```elixir
+  @spec func(value::any()) :: :ok | {:error, message::String.t()}
+  ```
+
+  ## Define schema with `defschema` macro
+  `defschema` helps you define schema clearly and easy to use.
+
+  ```elixir
+  defmodule MyStruct do
+    use Skema.Schema
+
+    defschema do
+      field :field_one, :string
+      field :field_two, :integer, required: true
+      field :field_four, :atom, default: :hey
+      field :update_time, :naive_datetime, default: &NaiveDateTime.utc_now/0
+    end
+  end
+  ```
   """
   @accumulating_attrs [
     :ts_fields,
@@ -30,7 +155,6 @@ defmodule Skema.Schema do
 
         defschema do
           field :field_one, :string
-          field :field_two, :integer, required: true
           field :field_three, :boolean, required: true
           field :field_four, :atom, default: :hey
           field :update_time, :naive_datetime, default: &NaiveDateTime.utc_now/0
@@ -95,29 +219,16 @@ defmodule Skema.Schema do
 
       def cast(params) when is_map(params) do
         case Skema.cast(params, @ts_fields) do
-          %{valid?: true, valid_data: data} -> {:ok, new(data)}
-          error -> {:error, error}
+          {:ok, data} -> {:ok, new(data)}
+          error -> error
         end
       end
 
       def validate(params) do
-        case Skema.validate(params, @ts_fields) do
-          %{valid?: true} -> :ok
-          error -> {:error, error}
-        end
+        Skema.validate(params, @ts_fields)
       end
 
-      def cast_and_validate(params) do
-        params
-        |> Skema.cast(@ts_fields)
-        |> Skema.validate()
-        |> case do
-          %{valid?: true, valid_data: data} -> {:ok, new(data)}
-          error -> {:error, error}
-        end
-      end
-
-      def __schema__(:fields) do
+      def __fields__ do
         @ts_fields
       end
     end
@@ -161,7 +272,7 @@ defmodule Skema.Schema do
   ## Options
 
     * `default` - sets the default value for the field
-    * `enforce` - if set to true, enforces the field and makes its type
+    * `required` - if set to true, enforces the field and makes its type
       non-nullable
   """
   defmacro field(name, type, opts \\ []) do

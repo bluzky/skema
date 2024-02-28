@@ -152,7 +152,7 @@ defmodule ParamTest do
       assert {:ok, %{number: 10}} = Skema.cast_and_validate(%{number: "10"}, %{number: :integer})
 
       assert {:ok, %{number: 10}} =
-               Skema.cast_and_validate(%{number: "10"}, %{number: [:integer, number: [min: 5]]})
+               Skema.cast_and_validate(%{number: "10"}, %{number: [type: :integer, number: [min: 5]]})
     end
 
     test "cast_and_validate mixed keys atom and string" do
@@ -166,25 +166,6 @@ defmodule ParamTest do
                    age: :integer
                  }
                )
-    end
-
-    test "Skema.cast_and_validate! success" do
-      assert %{number: 10} = Skema.cast_and_validate!(%{number: "10"}, %{number: :integer})
-    end
-
-    test "Skema.cast_and_validate! raise exception" do
-      assert_raise RuntimeError, fn ->
-        Skema.cast_and_validate!(%{number: 10}, %{number: {:array, :string}})
-      end
-    end
-
-    test "cast_and_validate with alias" do
-      schema = %{
-        email: [type: :string, as: :user_email]
-      }
-
-      rs = Skema.cast_and_validate(%{email: "xx@yy.com"}, schema)
-      assert {:ok, %{user_email: "xx@yy.com"}} = rs
     end
 
     test "cast_and_validate with from" do
@@ -247,7 +228,7 @@ defmodule ParamTest do
     end
 
     test "cast_and_validate func with 3 arguments return error" do
-      assert {:error, %{name: ["bad function"]}} =
+      assert {:error, %{errors: %{name: ["bad function"]}}} =
                Skema.cast_and_validate(%{name: "Dzung", strong: true}, %{
                  name: [
                    type: :string,
@@ -259,7 +240,7 @@ defmodule ParamTest do
     end
 
     test "cast_and_validate func return custom message" do
-      assert {:error, %{name: ["custom error"]}} =
+      assert {:error, %{errors: %{name: ["custom error"]}}} =
                Skema.cast_and_validate(%{name: "Dzung"}, %{
                  name: [
                    type: :string,
@@ -312,7 +293,7 @@ defmodule ParamTest do
         }
       }
 
-      assert {:error, %{user: [%{email: ["length must be greater than or equal to 5"]}]}} =
+      assert {:error, %{errors: %{user: [%{errors: %{email: ["length must be greater than or equal to 5"]}}]}}} =
                Skema.cast_and_validate(data, @schema)
     end
 
@@ -323,7 +304,7 @@ defmodule ParamTest do
         }
       }
 
-      assert {:error, %{user: [%{name: ["is required"]}]}} = Skema.cast_and_validate(data, @schema)
+      assert {:error, %{errors: %{user: [%{errors: %{name: ["is required"]}}]}}} = Skema.cast_and_validate(data, @schema)
     end
 
     @array_schema %{
@@ -369,6 +350,7 @@ defmodule ParamTest do
       assert {:ok, %{user: nil}} = Skema.cast_and_validate(data, @array_schema)
     end
 
+    @tag :only
     test "cast_and_validate array embed with invalid value should error" do
       data = %{
         "user" => [
@@ -384,7 +366,8 @@ defmodule ParamTest do
         ]
       }
 
-      assert {:error, %{user: [%{name: ["is required"]}]}} = Skema.cast_and_validate(data, @array_schema)
+      assert {:error, %{errors: %{user: [%{errors: %{name: ["is required"]}}]}}} =
+               Skema.cast_and_validate(data, @array_schema)
     end
 
     test "error with custom message" do
@@ -392,7 +375,7 @@ defmodule ParamTest do
         age: [type: :integer, number: [min: 10], message: "so khong hop le"]
       }
 
-      assert {:error, %{age: ["so khong hop le"]}} = Skema.cast_and_validate(%{"age" => "abc"}, schema)
+      assert {:error, %{errors: %{age: ["so khong hop le"]}}} = Skema.cast_and_validate(%{"age" => "abc"}, schema)
     end
 
     test "cast_and_validate validate required skip if default is set" do
@@ -406,7 +389,7 @@ defmodule ParamTest do
         hobbies: [type: {:array, :string}]
       }
 
-      assert {:error, %{age: ["is invalid"]}} = Skema.cast_and_validate(%{"age" => "abc"}, schema)
+      assert {:error, %{errors: %{age: ["is invalid"]}}} = Skema.cast_and_validate(%{"age" => "abc"}, schema)
     end
 
     test "return cast_and_validate error and validation error for field with cast_and_validate valid" do
@@ -415,7 +398,7 @@ defmodule ParamTest do
         hobbies: [type: {:array, :string}]
       }
 
-      assert {:error, %{age: ["must be greater than or equal to 10"], hobbies: ["is invalid"]}} =
+      assert {:error, %{errors: %{age: ["must be greater than or equal to 10"], hobbies: ["is invalid"]}}} =
                Skema.cast_and_validate(%{"age" => "1", hobbies: "bad array"}, schema)
     end
 
@@ -430,10 +413,14 @@ defmodule ParamTest do
 
       assert {:error,
               %{
-                user: %{
-                  hobbies: ["is invalid"]
-                },
-                id: ["is invalid"]
+                errors: %{
+                  user: %{
+                    errors: %{
+                      hobbies: ["is invalid"]
+                    }
+                  },
+                  id: ["is invalid"]
+                }
               }} = Skema.cast_and_validate(%{user: %{"age" => "1", hobbies: "bad array"}, id: "x"}, schema)
     end
 
@@ -442,14 +429,14 @@ defmodule ParamTest do
       cases = [%{nested: []}, %{nested: 1}, %{nested: "string"}]
 
       Enum.each(cases, fn case ->
-        assert {:error, %{nested: ["is invalid"]}} = Skema.cast_and_validate(case, schema)
+        assert {:error, %{errors: %{nested: ["is invalid"]}}} = Skema.cast_and_validate(case, schema)
       end)
     end
 
     test "return error when given map for array type" do
       schema = %{ids: {:array, :integer}}
       data = %{ids: %{}}
-      assert {:error, %{ids: ["is invalid"]}} = Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: %{ids: ["is invalid"]}}} = Skema.cast_and_validate(data, schema)
     end
 
     test "validate array item" do
@@ -460,7 +447,7 @@ defmodule ParamTest do
     end
 
     test "validate array item with error" do
-      assert {:error, %{id: [[0, "must be greater than or equal to 2"]]}} =
+      assert {:error, %{errors: %{id: [[0, "must be greater than or equal to 2"]]}}} =
                Skema.cast_and_validate(%{id: ["1", "2", 3]}, %{
                  id: [type: {:array, :integer}, each: [number: [min: 2]]]
                })
@@ -472,19 +459,19 @@ defmodule ParamTest do
                  name: [type: :string, default: "Dzung", required: fn _, _ -> true end]
                })
 
-      assert {:error, %{image: ["is required"]}} =
+      assert {:error, %{errors: %{image: ["is required"]}}} =
                Skema.cast_and_validate(%{}, %{
                  name: [type: :string, default: "Dzung", required: true],
                  image: [type: :string, required: fn _, data -> data.name == "Dzung" end]
                })
 
-      assert {:error, %{image: ["is required"]}} =
+      assert {:error, %{errors: %{image: ["is required"]}}} =
                Skema.cast_and_validate(%{}, %{
                  name: [type: :string, default: "Dzung", required: true],
                  image: [type: :string, required: {__MODULE__, :should_require_image}]
                })
 
-      assert {:error, %{image: ["is required"]}} =
+      assert {:error, %{errors: %{image: ["is required"]}}} =
                Skema.cast_and_validate(%{}, %{
                  name: [type: :string, default: "Dzung", required: true],
                  image: [type: :string, required: {__MODULE__, :should_require_image1}]
@@ -497,108 +484,6 @@ defmodule ParamTest do
 
     def should_require_image(_image, data) do
       data.name == "Dzung"
-    end
-  end
-
-  describe "test transform" do
-    test "transform function no transform" do
-      schema = %{
-        status: [:integer, as: :product_status, into: nil]
-      }
-
-      data = %{status: 0, deleted: true}
-
-      assert {:ok, %{product_status: 0}} = Skema.cast_and_validate(data, schema)
-    end
-
-    test "transform function accept value only" do
-      convert_status = fn status ->
-        text =
-          case status do
-            0 -> "draft"
-            1 -> "published"
-            2 -> "deleted"
-          end
-
-        {:ok, text}
-      end
-
-      schema = %{
-        status: [:integer, as: :product_status, into: convert_status]
-      }
-
-      data = %{
-        status: 0
-      }
-
-      assert {:ok, %{product_status: "draft"}} = Skema.cast_and_validate(data, schema)
-    end
-
-    test "transform function with context" do
-      convert_status = fn status, data ->
-        text =
-          case status do
-            0 -> "draft"
-            1 -> "published"
-            2 -> "banned"
-          end
-
-        text = if data.deleted, do: "deleted", else: text
-
-        {:ok, text}
-      end
-
-      schema = %{
-        status: [:integer, as: :product_status, into: convert_status],
-        deleted: :boolean
-      }
-
-      data = %{
-        status: 0,
-        deleted: true
-      }
-
-      assert {:ok, %{product_status: "deleted"}} = Skema.cast_and_validate(data, schema)
-    end
-
-    test "transform function with module, function tuple 2 arguments" do
-      schema = %{
-        status: [:string, as: :product_status, into: {__MODULE__, :upcase_string}]
-      }
-
-      data = %{status: "success"}
-
-      assert {:ok, %{product_status: "SUCCESS"}} = Skema.cast_and_validate(data, schema)
-    end
-
-    test "transform function with module, function tuple 1 arguments" do
-      schema = %{
-        status: [:string, as: :product_status, into: {__MODULE__, :upcase_string1}]
-      }
-
-      data = %{status: "success"}
-
-      assert {:ok, %{product_status: "SUCCESS"}} = Skema.cast_and_validate(data, schema)
-    end
-
-    test "transform function return value" do
-      convert_status = fn status ->
-        case status do
-          0 -> "draft"
-          1 -> "published"
-          2 -> "deleted"
-        end
-      end
-
-      schema = %{
-        status: [:integer, as: :product_status, into: convert_status]
-      }
-
-      data = %{
-        status: 0
-      }
-
-      assert {:ok, %{product_status: "draft"}} = Skema.cast_and_validate(data, schema)
     end
   end
 end

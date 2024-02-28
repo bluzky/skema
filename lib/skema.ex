@@ -1,6 +1,56 @@
 defmodule Skema do
   @moduledoc """
-  Params provide some helpers method to work with parameters
+  Skema is a simple schema validation and casting library for Elixir.
+  Skema provide 3 main APIs:
+
+  1. `Skema.cast_and_validate/2` for casting and validating data with given schema
+  2. `Skema.cast/2` for casting data with given schema
+  3. `Skema.validate/2` for validating data with given schema
+
+  ## Define schema
+  Skema schema could be a map with field name as key and field definition as value or a schema module.
+
+  ```elixir
+  schema = %{
+    email: [type: :string, required: true],
+    age: [type: :integer, number: [min: 18]],
+    hobbies: [type: {:array, :string}]
+  }
+  ```
+  or
+  ```elixir
+  defmodule UserSchema do
+    use Skema
+
+    defschema do
+      field :email, :string, required: true
+      field :age, :integer, number: [min: 18]
+      field :hobbies, {:array, :string}
+    end
+  end
+  ```
+
+  ## Use schema
+  You can use schema to cast and validate data like this
+
+  ```elixir
+  data = %{email: "blue", age: 10, hobbies: ["swimming", "reading"]}
+  schema = %{
+    email: [type: :string, required: true],
+    age: [type: :integer, number: [min: 18]],
+    hobbies: [type: {:array, :string}]
+  }
+
+  case Skema.cast_and_validate(data, schema) do
+    {:ok, data} -> IO.puts("Data is valid")
+    {:error, errors} -> IO.puts(inspect(errors))
+  end
+  ```
+
+  ## What is the difference between APIs error
+    - `Skema.cast_and_validate/2` will return error if there is any error in casting or validating data
+    - `Skema.cast/2` will return error for casting data only (data can be casted to proper type or not)
+    - `Skema.validate/2` will return error for validating data only
   """
 
   alias Skema.Result
@@ -14,68 +64,35 @@ defmodule Skema do
   end
 
   @doc """
-  Cast and validate params with given schema.
-  See `Skema.SchemaHelper` for instruction on how to define a schema
-  And then use it like this
-
-  ```elixir
-  def index(conn, params) do
-    index_schema = %{
-      status: [type: :string, required: true],
-      type: [type: :string, in: ["type1", "type2", "type3"]],
-      keyword: [type: :string, length: [min: 3, max: 100]],
-    }
-
-    with {:ok, data} <- Skema.cast(params, index_schema) do
-      # do query data
-    else
-      {:error, errors} -> IO.puts(errors)
-    end
-  end
-  ```
+  Cast and validate data with given schema.
   """
-
-  @spec cast_and_validate(data :: map(), schema :: map()) ::
+  @spec cast_and_validate(data :: map(), schema :: map() | module()) ::
           {:ok, map()} | {:error, errors :: map()}
   def cast_and_validate(data, schema) do
-    schema = Skema.SchemaHelper.expand(schema)
+    with {_, {:ok, data}} <- {:cast, cast(data, schema)},
+         {_, :ok} <- {:validate, validate(data, schema)} do
+      {:ok, data}
+    else
+      {:cast, {:error, result}} ->
+        # validate valid data to get more detail error
+        validate(result)
 
-    [schema: schema, params: data]
-    |> Result.new()
-    |> cast()
-    |> validate()
-    |> transform()
-    |> case do
-      %Result{valid?: true, valid_data: valid_data} -> {:ok, valid_data}
-      %{errors: errors} -> {:error, errors}
-    end
-  end
-
-  def cast_and_validate!(data, schema) do
-    case cast_and_validate(data, schema) do
-      {:ok, value} -> value
-      _ -> raise "Skema :: bad input data"
+      {:validate, error} ->
+        error
     end
   end
 
   @doc """
-  Cast and validate params with given schema.
+  Cast data with given schema.
   """
-  @spec cast_apply(data :: map(), schema :: map()) ::
-          %Skema.Result{}
-  def cast_apply(data, schema) when is_map(data) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    [schema: schema, params: data]
-    |> Result.new()
-    |> cast()
-    |> case do
-      %{valid?: true, valid_data: data} -> {:ok, data}
-      %{errors: errors} -> {:error, errors}
+  @spec cast(data :: map(), schema :: map() | module()) :: {:ok, map()} | {:error, %Result{}}
+  def cast(data, schema) when is_atom(schema) do
+    case cast(data, schema.__fields__()) do
+      {:ok, data} -> {:ok, struct(schema, data)}
+      error -> error
     end
   end
 
-  @spec cast(data :: map(), schema :: map) :: %Skema.Result{}
   def cast(data, schema) when is_map(data) do
     schema = Skema.SchemaHelper.expand(schema)
 
@@ -84,29 +101,28 @@ defmodule Skema do
     |> cast()
   end
 
-  @spec cast(%Skema.Result{}) :: %Skema.Result{}
   defp cast(%Result{} = result) do
-    Enum.reduce(result.schema, result, fn field, acc ->
-      case cast_field(acc.params, field) do
-        {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
-        {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
-      end
-    end)
+    result =
+      Enum.reduce(result.schema, result, fn field, acc ->
+        case cast_field(acc.params, field) do
+          {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
+          {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
+        end
+      end)
+
+    if result.valid? do
+      {:ok, result.valid_data}
+    else
+      {:error, result}
+    end
   end
 
   @doc """
-  Validate params with given schema.
+  Validate data with given schema.
   """
-  def validate_apply(data, schema) when is_map(data) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    [schema: schema, params: data, valid_data: data]
-    |> Result.new()
-    |> validate()
-    |> case do
-      %Result{valid?: true} -> :ok
-      %{errors: errors} -> {:error, errors}
-    end
+  @spec validate(data :: map(), schema :: map() | module()) :: :ok | {:error, %Result{}}
+  def validate(data, schema) when is_atom(schema) do
+    validate(data, schema.__fields__())
   end
 
   def validate(data, schema) when is_map(data) do
@@ -117,32 +133,24 @@ defmodule Skema do
     |> validate()
   end
 
-  def validate(%Result{} = result) do
-    Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
-      # skip if there is an error
-      if Result.get_error(acc, field_name) do
-        acc
-      else
-        case validate_field(acc.valid_data, field) do
-          :ok -> acc
-          {:error, error} -> Result.put_error(acc, field_name, error)
+  defp validate(%Result{} = result) do
+    result =
+      Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
+        if Result.get_error(acc, field_name) do
+          acc
+        else
+          case validate_field(acc.valid_data, field) do
+            :ok -> acc
+            {:error, error} -> Result.put_error(acc, field_name, error)
+          end
         end
-      end
-    end)
-  end
+      end)
 
-  @doc """
-  Transform params with given schema.
-  """
-  def transform_apply(data, schema) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    [schema: schema, params: data, valid_data: data]
-    |> Result.new()
-    |> transform()
-    |> case do
-      %Result{valid?: true, valid_data: valid_data} -> {:ok, valid_data}
-      %{errors: errors} -> {:error, errors}
+    # skip if there is an error
+    if result.valid? do
+      :ok
+    else
+      {:error, result}
     end
   end
 
@@ -155,17 +163,24 @@ defmodule Skema do
   end
 
   def transform(%Result{} = result) do
-    Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
-      # skip if there is an error
-      if Result.get_error(acc, field_name) do
-        acc
-      else
-        case transform_field(acc.valid_data, field) do
-          {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
-          {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
+    result =
+      Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
+        # skip if there is an error
+        if Result.get_error(acc, field_name) do
+          acc
+        else
+          case transform_field(acc.valid_data, field) do
+            {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
+            {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
+          end
         end
-      end
-    end)
+      end)
+
+    if result.valid? do
+      {:ok, result.valid_data}
+    else
+      {:error, result}
+    end
   end
 
   ## cast schema logic
@@ -240,13 +255,7 @@ defmodule Skema do
 
   # cast nested map
   defp cast_value(value, %{} = type) when is_map(value) do
-    case cast(value, type) do
-      %Result{valid?: true, valid_data: valid_data} ->
-        {:ok, valid_data}
-
-      %{errors: errors} ->
-        {:error, errors}
-    end
+    cast(value, type)
   end
 
   defp cast_value(_, %{}), do: :error
@@ -305,7 +314,7 @@ defmodule Skema do
   defp do_validate(_, value, _, {:type, type}) when is_map(type) do
     # validate nested map
     if is_map(value) do
-      validate_apply(value, type)
+      validate(value, type)
     else
       {:error, "is invalid"}
     end
@@ -348,7 +357,7 @@ defmodule Skema do
     summary =
       Enum.reduce(results, {:ok, []}, fn
         :ok, acc -> acc
-        {:error, %Skema.Result{errors: errors}}, {_, acc_msg} -> {:error, [[errors] | acc_msg]}
+        {:error, %Skema.Result{} = result}, {_, acc_msg} -> {:error, [[result] | acc_msg]}
         {:error, msg}, {_, acc_msg} when is_list(msg) -> {:error, [msg | acc_msg]}
         {:error, msg}, {_, acc_msg} -> {:error, [[msg] | acc_msg]}
       end)
