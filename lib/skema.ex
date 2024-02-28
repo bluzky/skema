@@ -1,6 +1,56 @@
 defmodule Skema do
   @moduledoc """
-  Params provide some helpers method to work with parameters
+  Skema is a simple schema validation and casting library for Elixir.
+  Skema provide 3 main APIs:
+
+  1. `Skema.cast_and_validate/2` for casting and validating data with given schema
+  2. `Skema.cast/2` for casting data with given schema
+  3. `Skema.validate/2` for validating data with given schema
+
+  ## Define schema
+  Skema schema could be a map with field name as key and field definition as value or a schema module.
+
+  ```elixir
+  schema = %{
+    email: [type: :string, required: true],
+    age: [type: :integer, number: [min: 18]],
+    hobbies: [type: {:array, :string}]
+  }
+  ```
+  or
+  ```elixir
+  defmodule UserSchema do
+    use Skema
+
+    defschema do
+      field :email, :string, required: true
+      field :age, :integer, number: [min: 18]
+      field :hobbies, {:array, :string}
+    end
+  end
+  ```
+
+  ## Use schema
+  You can use schema to cast and validate data like this
+
+  ```elixir
+  data = %{email: "blue", age: 10, hobbies: ["swimming", "reading"]}
+  schema = %{
+    email: [type: :string, required: true],
+    age: [type: :integer, number: [min: 18]],
+    hobbies: [type: {:array, :string}]
+  }
+
+  case Skema.cast_and_validate(data, schema) do
+    {:ok, data} -> IO.puts("Data is valid")
+    {:error, errors} -> IO.puts(inspect(errors))
+  end
+  ```
+
+  ## What is the difference between APIs error
+    - `Skema.cast_and_validate/2` will return error if there is any error in casting or validating data
+    - `Skema.cast/2` will return error for casting data only (data can be casted to proper type or not)
+    - `Skema.validate/2` will return error for validating data only
   """
 
   alias Skema.Result
@@ -14,28 +64,9 @@ defmodule Skema do
   end
 
   @doc """
-  Cast and validate params with given schema.
-  See `Skema.SchemaHelper` for instruction on how to define a schema
-  And then use it like this
-
-  ```elixir
-  def index(conn, params) do
-    index_schema = %{
-      status: [type: :string, required: true],
-      type: [type: :string, in: ["type1", "type2", "type3"]],
-      keyword: [type: :string, length: [min: 3, max: 100]],
-    }
-
-    with {:ok, data} <- Skema.cast(params, index_schema) do
-      # do query data
-    else
-      {:error, errors} -> IO.puts(errors)
-    end
-  end
-  ```
+  Cast and validate data with given schema.
   """
-
-  @spec cast_and_validate(data :: map(), schema :: map()) ::
+  @spec cast_and_validate(data :: map(), schema :: map() | module()) ::
           {:ok, map()} | {:error, errors :: map()}
   def cast_and_validate(data, schema) do
     with {_, {:ok, data}} <- {:cast, cast(data, schema)},
@@ -43,7 +74,7 @@ defmodule Skema do
       {:ok, data}
     else
       {:cast, {:error, result}} ->
-        # valiate valid data to get more detail error
+        # validate valid data to get more detail error
         validate(result)
 
       {:validate, error} ->
@@ -51,6 +82,10 @@ defmodule Skema do
     end
   end
 
+  @doc """
+  Cast data with given schema.
+  """
+  @spec cast(data :: map(), schema :: map() | module()) :: {:ok, map()} | {:error, %Result{}}
   def cast(data, schema) when is_atom(schema) do
     case cast(data, schema.__fields__()) do
       {:ok, data} -> {:ok, struct(schema, data)}
@@ -58,7 +93,6 @@ defmodule Skema do
     end
   end
 
-  @spec cast(data :: map(), schema :: map) :: %Skema.Result{}
   def cast(data, schema) when is_map(data) do
     schema = Skema.SchemaHelper.expand(schema)
 
@@ -83,6 +117,10 @@ defmodule Skema do
     end
   end
 
+  @doc """
+  Validate data with given schema.
+  """
+  @spec validate(data :: map(), schema :: map() | module()) :: :ok | {:error, %Result{}}
   def validate(data, schema) when is_atom(schema) do
     validate(data, schema.__fields__())
   end
@@ -95,7 +133,7 @@ defmodule Skema do
     |> validate()
   end
 
-  def validate(%Result{} = result) do
+  defp validate(%Result{} = result) do
     result =
       Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
         if Result.get_error(acc, field_name) do

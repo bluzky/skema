@@ -55,7 +55,7 @@ defschema IndexParams do
 end
 
 def index(conn, params) do
-    with {:ok, better_params} <- IndexParams.cast(params) do
+    with {:ok, better_params} <- Skema.cast(params, IndexParams) do
         # do anything with your params
     else
         {:error, errors} -> # return params error
