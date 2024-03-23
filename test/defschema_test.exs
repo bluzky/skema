@@ -2,6 +2,23 @@ defmodule DefSchemaTest do
   use ExUnit.Case
   use Skema
 
+
+  describe "defschema module with default value" do
+    defschema User do
+      field(:name, :string, required: true)
+      field(:email, :string, length: [min: 5])
+      field(:age, :integer, default: 10)
+    end
+
+    test "new with default value" do
+      assert  %User{age: 10, name: nil, email: nil} = User.new(%{})
+    end
+
+    test "new override default value" do
+      assert  %User{age: 18, name: "Donkey", email: nil} = User.new(%{age: 18, name: "Donkey"})
+    end
+  end
+
   describe "Skema.cast_and_validate" do
     defschema UserModel do
       field(:name, :string, required: true)

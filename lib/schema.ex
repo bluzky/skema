@@ -247,12 +247,23 @@ defmodule Skema.Schema do
 
       unquote(block)
 
+      definitions = Enum.map(@ts_fields, fn {name, opts} ->
+        {name, Skema.Schema.__default_value__(opts[:default])}
+      end)
+
       @enforce_keys @ts_enforce_keys
-      defstruct @ts_fields
+      defstruct definitions
 
       Skema.Schema.__type__(@ts_types)
     end
   end
+
+  # expand default value, this only applied a single time at build time
+  def __default_value__(default) when is_function(default, 0) do
+    default.()
+  end
+
+  def __default_value__(default), do: default
 
   @doc false
   defmacro __type__(types) do
