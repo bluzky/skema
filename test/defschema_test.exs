@@ -2,7 +2,6 @@ defmodule DefSchemaTest do
   use ExUnit.Case
   use Skema
 
-
   describe "defschema module with default value" do
     defschema User do
       field(:name, :string, required: true)
@@ -11,11 +10,32 @@ defmodule DefSchemaTest do
     end
 
     test "new with default value" do
-      assert  %User{age: 10, name: nil, email: nil} = User.new(%{})
+      assert %User{age: 10, name: nil, email: nil} = User.new(%{})
     end
 
     test "new override default value" do
-      assert  %User{age: 18, name: "Donkey", email: nil} = User.new(%{age: 18, name: "Donkey"})
+      assert %User{age: 18, name: "Donkey", email: nil} = User.new(%{age: 18, name: "Donkey"})
+    end
+  end
+
+  describe "test custom ecto type" do
+    defmodule CustomType do
+      @moduledoc false
+      def cast(value) when is_binary(value), do: {:ok, value}
+      def cast(_), do: :error
+    end
+
+    defschema User2 do
+      field(:name, :string, required: true)
+      field(:status, CustomType)
+    end
+
+    test "cast custom type" do
+      assert {:ok, %User2{name: "D", status: "active"}} = %{name: "D", status: "active"} |> User2.cast() |> IO.inspect()
+    end
+
+    test "cast custom type with invalid value" do
+      assert {:error, %{errors: %{status: ["is invalid"]}}} = User2.cast(%{name: "D", status: 1})
     end
   end
 

@@ -241,6 +241,8 @@ defmodule Skema.Type do
 
   # if custom type provide cast function, use it
   defp maybe_cast_custom_type(mod, value) do
+    Code.ensure_loaded?(mod)
+
     if function_exported?(mod, :cast, 1) do
       mod.cast(value)
     else
