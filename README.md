@@ -165,9 +165,7 @@ Basically it supports following validation
 - validate required(not nil) or not
 - validate each array item
 
-
-
-  ```elixir
+```elixir
 defschema Product do
     field :sku, :string, required: true, length: [min: 6, max: 20]
     field :name, :string, required: true,
@@ -176,7 +174,7 @@ defschema Product do
     field :expiration_date, :naive_datetime, func: &my_validation_func/1,
     field :tags, {:array, :string}, each: [length: [max: 50]]
 end
-  ```
+```
 
 ### Dynamic required
 - Can accept function or `{module, function}` tuple
