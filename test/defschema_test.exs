@@ -31,7 +31,7 @@ defmodule DefSchemaTest do
     end
 
     test "cast custom type" do
-      assert {:ok, %User2{name: "D", status: "active"}} = %{name: "D", status: "active"} |> User2.cast() |> IO.inspect()
+      assert {:ok, %User2{name: "D", status: "active"}} = User2.cast(%{name: "D", status: "active"})
     end
 
     test "cast custom type with invalid value" do

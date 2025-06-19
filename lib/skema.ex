@@ -68,7 +68,7 @@ defmodule Skema do
     email: [into: &String.downcase/1],
     full_name: [
       into: fn _value, data ->
-        "#{data.first_name} #{data.last_name}"
+        "\#{data.first_name} \#{data.last_name}"
       end
     ],
     user_id: [as: :id, into: &generate_uuid/1]
