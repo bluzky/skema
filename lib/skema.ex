@@ -2,10 +2,11 @@ defmodule Skema do
   @moduledoc """
   Skema is a simple schema validation and casting library for Elixir.
 
-  Provides three main APIs:
+  Provides four main APIs:
   1. `cast_and_validate/2` - casting and validating data with given schema
   2. `cast/2` - casting data with given schema
   3. `validate/2` - validating data with given schema
+  4. `transform/2` - transforming data with given schema
 
   ## Define schema
   Skema schema can be a map with field name as key and field definition as value,
@@ -33,16 +34,80 @@ defmodule Skema do
   end
   ```
 
-  ## Usage example
+  ## Data Processing Pipeline
+
+  Skema provides a complete data processing pipeline:
+
+  1. **Cast** - Convert raw input to proper types
+  2. **Validate** - Check business rules and constraints
+  3. **Transform** - Normalize, format, and compute derived values
 
   ```elixir
-  data = %{email: "blue@test.com", age: 25, hobbies: ["swimming", "reading"]}
+  # Full pipeline
+  raw_data = %{"email" => "  JOHN@EXAMPLE.COM  ", "age" => "25"}
 
-  case Skema.cast_and_validate(data, schema) do
+  with {:ok, cast_data} <- Skema.cast(raw_data, schema),
+       :ok <- Skema.validate(cast_data, schema),
+       {:ok, final_data} <- Skema.transform(cast_data, transform_schema) do
+    {:ok, final_data}
+  end
+
+  # Or use the combined function
+  case Skema.cast_and_validate(raw_data, schema) do
     {:ok, data} -> IO.puts("Data is valid")
     {:error, errors} -> IO.puts(inspect(errors))
   end
   ```
+
+  ## Transformation Features
+
+  Transform allows you to modify data after casting and validation:
+
+  ```elixir
+  transform_schema = %{
+    email: [into: &String.downcase/1],
+    full_name: [
+      into: fn _value, data ->
+        "#{data.first_name} #{data.last_name}"
+      end
+    ],
+    user_id: [as: :id, into: &generate_uuid/1]
+  }
+  ```
+
+  ### Transformation Options
+
+  - `into` - Function to transform the field value
+  - `as` - Rename the field in the output
+
+  ### Function Types
+
+  ```elixir
+  # Simple transformation
+  [into: &String.upcase/1]
+
+  # Access to all data
+  [into: fn value, data -> transform_with_context(value, data) end]
+
+  # Module function
+  [into: {MyModule, :transform_field}]
+
+  # Error handling
+  [into: fn value ->
+    if valid?(value) do
+      {:ok, normalize(value)}
+    else
+      {:error, "invalid value"}
+    end
+  end]
+  ```
+
+  ## API Differences
+
+  - **cast/2** - Type conversion only, returns `{:ok, data}` or `{:error, result}`
+  - **validate/2** - Rule checking only, returns `:ok` or `{:error, result}`
+  - **transform/2** - Data transformation, returns `{:ok, data}` or `{:error, result}`
+  - **cast_and_validate/2** - Combined cast + validate, returns `{:ok, data}` or `{:error, errors}`
   """
 
   alias Skema.Result
