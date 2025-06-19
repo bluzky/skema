@@ -348,12 +348,11 @@ defmodule Skema.Schema do
   end
 
   @doc false
-  # Evaluate zero-arity functions at compile time for static defaults
   def __resolve_default_value__(default) when is_function(default, 0) do
-    default.()
-  rescue
-    # If function can't be evaluated at compile time, keep as is
-    _ -> nil
+    # Don't evaluate functions at compile time - preserve them for runtime evaluation
+    # This ensures functions like &DateTime.utc_now/0 give different values each time
+    # Set struct field to nil, actual default will be applied during casting
+    nil
   end
 
   def __resolve_default_value__(default), do: default
