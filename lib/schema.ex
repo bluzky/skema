@@ -412,9 +412,8 @@ defmodule Skema.Schema do
     # Validate options
     validate_field_options!(opts)
 
-    has_default? = Keyword.has_key?(opts, :default)
-    is_required? = determine_required_status(opts, has_default?)
-    is_nullable? = not has_default? and not is_required?
+    is_required? = determine_required_status(opts)
+    is_nullable? = not is_required?
 
     # Store field definition
     Module.put_attribute(mod, :ts_fields, {name, [{:type, type} | opts]})
@@ -459,10 +458,10 @@ defmodule Skema.Schema do
   end
 
   # Determine if field should be required
-  defp determine_required_status(opts, has_default?) do
+  defp determine_required_status(opts) do
     case Keyword.get(opts, :required) do
-      # Default behavior: required if no default
-      nil -> not has_default?
+      # Changed: Default to not required unless explicitly set
+      nil -> false
       bool when is_boolean(bool) -> bool
       # Dynamic required, not enforced at struct level
       func when is_function(func) or is_tuple(func) -> false
