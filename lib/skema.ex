@@ -1,14 +1,16 @@
 defmodule Skema do
   @moduledoc """
   Skema is a simple schema validation and casting library for Elixir.
-  Skema provide 3 main APIs:
 
-  1. `Skema.cast_and_validate/2` for casting and validating data with given schema
-  2. `Skema.cast/2` for casting data with given schema
-  3. `Skema.validate/2` for validating data with given schema
+  Provides four main APIs:
+  1. `cast_and_validate/2` - casting and validating data with given schema
+  2. `cast/2` - casting data with given schema
+  3. `validate/2` - validating data with given schema
+  4. `transform/2` - transforming data with given schema
 
   ## Define schema
-  Skema schema could be a map with field name as key and field definition as value or a schema module.
+  Skema schema can be a map with field name as key and field definition as value,
+  or a schema module.
 
   ```elixir
   schema = %{
@@ -17,7 +19,9 @@ defmodule Skema do
     hobbies: [type: {:array, :string}]
   }
   ```
-  or
+
+  or using defschema:
+
   ```elixir
   defmodule UserSchema do
     use Skema
@@ -30,27 +34,80 @@ defmodule Skema do
   end
   ```
 
-  ## Use schema
-  You can use schema to cast and validate data like this
+  ## Data Processing Pipeline
+
+  Skema provides a complete data processing pipeline:
+
+  1. **Cast** - Convert raw input to proper types
+  2. **Validate** - Check business rules and constraints
+  3. **Transform** - Normalize, format, and compute derived values
 
   ```elixir
-  data = %{email: "blue", age: 10, hobbies: ["swimming", "reading"]}
-  schema = %{
-    email: [type: :string, required: true],
-    age: [type: :integer, number: [min: 18]],
-    hobbies: [type: {:array, :string}]
-  }
+  # Full pipeline
+  raw_data = %{"email" => "  JOHN@EXAMPLE.COM  ", "age" => "25"}
 
-  case Skema.cast_and_validate(data, schema) do
+  with {:ok, cast_data} <- Skema.cast(raw_data, schema),
+       :ok <- Skema.validate(cast_data, schema),
+       {:ok, final_data} <- Skema.transform(cast_data, transform_schema) do
+    {:ok, final_data}
+  end
+
+  # Or use the combined function
+  case Skema.cast_and_validate(raw_data, schema) do
     {:ok, data} -> IO.puts("Data is valid")
     {:error, errors} -> IO.puts(inspect(errors))
   end
   ```
 
-  ## What is the difference between APIs error
-    - `Skema.cast_and_validate/2` will return error if there is any error in casting or validating data
-    - `Skema.cast/2` will return error for casting data only (data can be casted to proper type or not)
-    - `Skema.validate/2` will return error for validating data only
+  ## Transformation Features
+
+  Transform allows you to modify data after casting and validation:
+
+  ```elixir
+  transform_schema = %{
+    email: [into: &String.downcase/1],
+    full_name: [
+      into: fn _value, data ->
+        "\#{data.first_name} \#{data.last_name}"
+      end
+    ],
+    user_id: [as: :id, into: &generate_uuid/1]
+  }
+  ```
+
+  ### Transformation Options
+
+  - `into` - Function to transform the field value
+  - `as` - Rename the field in the output
+
+  ### Function Types
+
+  ```elixir
+  # Simple transformation
+  [into: &String.upcase/1]
+
+  # Access to all data
+  [into: fn value, data -> transform_with_context(value, data) end]
+
+  # Module function
+  [into: {MyModule, :transform_field}]
+
+  # Error handling
+  [into: fn value ->
+    if valid?(value) do
+      {:ok, normalize(value)}
+    else
+      {:error, "invalid value"}
+    end
+  end]
+  ```
+
+  ## API Differences
+
+  - **cast/2** - Type conversion only, returns `{:ok, data}` or `{:error, result}`
+  - **validate/2** - Rule checking only, returns `:ok` or `{:error, result}`
+  - **transform/2** - Data transformation, returns `{:ok, data}` or `{:error, result}`
+  - **cast_and_validate/2** - Combined cast + validate, returns `{:ok, data}` or `{:error, errors}`
   """
 
   alias Skema.Result
@@ -63,345 +120,441 @@ defmodule Skema do
     end
   end
 
+  # ============================================================================
+  # Public API
+  # ============================================================================
+
   @doc """
   Cast and validate data with given schema.
+
+  Returns `{:ok, data}` if both casting and validation succeed,
+  `{:error, errors}` otherwise.
   """
   @spec cast_and_validate(data :: map(), schema :: map() | module()) ::
           {:ok, map()} | {:error, errors :: map()}
   def cast_and_validate(data, schema) do
-    with {_, {:ok, data}} <- {:cast, cast(data, schema)},
-         {_, :ok} <- {:validate, validate(data, schema)} do
-      {:ok, data}
+    with {:ok, casted_data} <- cast(data, schema),
+         :ok <- validate(casted_data, schema) do
+      {:ok, casted_data}
     else
-      {:cast, {:error, result}} ->
-        # validate valid data to get more detail error
-        validate(result)
+      {:error, %Result{} = result} ->
+        # For cast errors, also run validation on valid data to get complete error picture
+        enhanced_result = enhance_cast_errors_with_validation(result)
+        format_error_response({:error, enhanced_result})
 
-      {:validate, error} ->
-        error
+      {:error, %Result{}} = error ->
+        format_error_response(error)
     end
   end
 
   @doc """
-  Cast data with given schema.
+  Cast data to proper types according to schema.
+
+  Returns `{:ok, data}` if casting succeeds, `{:error, result}` otherwise.
   """
-  @spec cast(data :: map(), schema :: map() | module()) :: {:ok, map()} | {:error, %Result{}}
+  @spec cast(data :: map(), schema :: map() | module()) ::
+          {:ok, map()} | {:error, %Result{}}
   def cast(data, schema) when is_atom(schema) do
-    case cast(data, schema.__fields__()) do
+    fields_schema = Map.new(schema.__fields__())
+
+    case cast(data, fields_schema) do
       {:ok, data} -> {:ok, struct(schema, data)}
       error -> error
     end
   end
 
-  def cast(data, schema) when is_map(data) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    [schema: schema, params: data]
-    |> Result.new()
-    |> cast()
+  def cast(data, schema) when is_map(data) and is_list(schema) do
+    # Handle keyword list schemas (from __fields__())
+    cast(data, Map.new(schema))
   end
 
-  defp cast(%Result{} = result) do
-    result =
-      Enum.reduce(result.schema, result, fn field, acc ->
-        case cast_field(acc.params, field) do
-          {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
-          {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
-        end
-      end)
-
-    if result.valid? do
-      {:ok, result.valid_data}
-    else
-      {:error, result}
-    end
+  def cast(data, schema) when is_map(data) and is_map(schema) do
+    schema
+    |> prepare_schema()
+    |> build_initial_result(data)
+    |> process_casting()
   end
 
   @doc """
-  Validate data with given schema.
+  Validate data according to schema rules.
+
+  Returns `:ok` if validation succeeds, `{:error, result}` otherwise.
   """
-  @spec validate(data :: map(), schema :: map() | module()) :: :ok | {:error, %Result{}}
+  @spec validate(data :: map(), schema :: map() | module()) ::
+          :ok | {:error, %Result{}}
   def validate(data, schema) when is_atom(schema) do
     validate(data, schema.__fields__())
   end
 
-  def validate(data, schema) when is_map(data) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    [schema: schema, params: data, valid_data: data]
-    |> Result.new()
-    |> validate()
+  def validate(data, schema) when is_map(data) and is_list(schema) do
+    # Handle keyword list schemas (from __fields__())
+    validate(data, Map.new(schema))
   end
 
-  defp validate(%Result{} = result) do
-    result =
-      Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
-        if Result.get_error(acc, field_name) do
-          acc
-        else
-          case validate_field(acc.valid_data, field) do
-            :ok -> acc
-            {:error, error} -> Result.put_error(acc, field_name, error)
-          end
-        end
+  def validate(data, schema) when is_map(data) and is_map(schema) do
+    schema
+    |> prepare_schema()
+    |> build_validation_result(data)
+    |> process_validation()
+  end
+
+  @doc """
+  Transform data according to schema transformation rules.
+
+  Returns `{:ok, data}` if transformation succeeds, `{:error, result}` otherwise.
+  """
+  @spec transform(data :: map(), schema :: map()) ::
+          {:ok, map()} | {:error, %Result{}}
+  def transform(data, schema) when is_map(data) and is_map(schema) do
+    schema
+    |> prepare_schema()
+    |> build_transformation_result(data)
+    |> process_transformation()
+  end
+
+  # ============================================================================
+  # Schema Processing Helpers
+  # ============================================================================
+
+  defp prepare_schema(schema) do
+    Skema.SchemaHelper.expand(schema)
+  end
+
+  defp build_initial_result(schema, data) do
+    Result.new(schema: schema, params: data)
+  end
+
+  defp build_validation_result(schema, data) do
+    Result.new(schema: schema, params: data, valid_data: data)
+  end
+
+  defp build_transformation_result(schema, data) do
+    Result.new(schema: schema, params: data, valid_data: data)
+  end
+
+  # ============================================================================
+  # Casting Logic
+  # ============================================================================
+
+  defp process_casting(%Result{} = result) do
+    final_result =
+      Enum.reduce(result.schema, result, fn field, acc ->
+        process_cast_field(acc, field)
       end)
 
-    # skip if there is an error
-    if result.valid? do
-      :ok
+    if final_result.valid? do
+      {:ok, final_result.valid_data}
     else
-      {:error, result}
+      {:error, final_result}
     end
   end
 
-  def transform(data, schema) do
-    schema = Skema.SchemaHelper.expand(schema)
-
-    [schema: schema, params: data, valid_data: data]
-    |> Result.new()
-    |> transform()
-  end
-
-  def transform(%Result{} = result) do
-    result =
-      Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
-        # skip if there is an error
-        if Result.get_error(acc, field_name) do
-          acc
-        else
-          case transform_field(acc.valid_data, field) do
-            {:ok, {field_name, value}} -> Result.put_data(acc, field_name, value)
-            {:error, {field_name, error}} -> Result.put_error(acc, field_name, error)
-          end
-        end
-      end)
-
-    if result.valid? do
-      {:ok, result.valid_data}
-    else
-      {:error, result}
-    end
-  end
-
-  ## cast schema logic
-  defp cast_field(data, {field_name, definitions}) do
-    {custom_message, definitions} = Keyword.pop(definitions, :message)
-
-    # 1. cast value
-    case do_cast(data, field_name, definitions) do
+  defp process_cast_field(result, {field_name, definitions}) do
+    case cast_single_field(result.params, field_name, definitions) do
       {:ok, value} ->
-        {:ok, {field_name, value}}
+        Result.put_data(result, field_name, value)
 
       {:error, error} ->
-        # 3.2 Handle custom error message
-        if custom_message do
-          {:error, {field_name, [custom_message]}}
-        else
-          errors = if is_binary(error), do: [error], else: error
-
-          {:error, {field_name, errors}}
-        end
+        Result.put_error(result, field_name, error)
     end
   end
 
-  # cast data to proper type
-  defp do_cast(data, field_name, definitions) do
-    field_name =
-      if definitions[:from] do
-        definitions[:from]
-      else
-        field_name
-      end
+  defp cast_single_field(data, field_name, definitions) do
+    {custom_message, clean_definitions} = extract_custom_message(definitions)
 
-    value = get_value(data, field_name, definitions[:default])
+    case perform_field_cast(data, field_name, clean_definitions) do
+      {:ok, value} ->
+        {:ok, value}
 
-    cast_result =
-      case definitions[:cast_func] do
-        nil ->
-          cast_value(value, definitions[:type])
-
-        func ->
-          apply_function(func, value, data)
-      end
-
-    case cast_result do
-      :error -> {:error, "is invalid"}
-      others -> others
+      {:error, error} ->
+        formatted_error = format_cast_error(error, custom_message)
+        {:error, formatted_error}
     end
   end
 
-  defp get_value(data, field_name, default \\ nil) do
+  defp extract_custom_message(definitions) do
+    Keyword.pop(definitions, :message)
+  end
+
+  defp format_cast_error(error, nil) do
+    if is_binary(error), do: [error], else: error
+  end
+
+  defp format_cast_error(_error, custom_message) do
+    [custom_message]
+  end
+
+  defp perform_field_cast(data, field_name, definitions) do
+    source_field = definitions[:from] || field_name
+    value = extract_field_value(data, source_field, definitions[:default])
+
+    case get_cast_function(definitions) do
+      nil ->
+        cast_with_type(value, definitions[:type])
+
+      cast_func ->
+        apply_custom_cast_function(cast_func, value, data)
+    end
+  end
+
+  defp extract_field_value(data, field_name, default \\ nil) do
     case Map.fetch(data, field_name) do
       {:ok, value} ->
         value
 
-      _ ->
+      :error ->
         case Map.fetch(data, "#{field_name}") do
-          {:ok, value} ->
-            value
-
-          _ ->
-            default
+          {:ok, value} -> value
+          :error -> default
         end
     end
   end
 
-  defp cast_value(nil, _), do: {:ok, nil}
-
-  # cast array of custom map
-  defp cast_value(value, {:array, %{} = type}) do
-    cast_array(type, value)
+  defp get_cast_function(definitions) do
+    definitions[:cast_func]
   end
 
-  # cast nested map
-  defp cast_value(value, %{} = type) when is_map(value) do
-    cast(value, type)
+  defp cast_with_type(nil, _type), do: {:ok, nil}
+
+  defp cast_with_type(value, {:array, %{} = nested_schema}) do
+    cast_array_of_schemas(nested_schema, value)
   end
 
-  defp cast_value(_, %{}), do: :error
-
-  defp cast_value(value, type) do
-    Type.cast(type, value)
+  defp cast_with_type(value, %{} = nested_schema) when is_map(value) do
+    cast(value, nested_schema)
   end
 
-  # rewrite cast_array for more detail errors
-  def cast_array(type, value, acc \\ [])
+  defp cast_with_type(_value, %{}), do: {:error, "is invalid"}
 
-  def cast_array(type, [value | t], acc) do
-    case cast_value(value, type) do
-      {:ok, data} ->
-        cast_array(type, t, [data | acc])
+  defp cast_with_type(value, type) do
+    case Type.cast(type, value) do
+      :error -> {:error, "is invalid"}
+      result -> result
+    end
+  end
+
+  defp cast_array_of_schemas(schema, value, acc \\ [])
+
+  defp cast_array_of_schemas(_schema, [], acc) do
+    {:ok, Enum.reverse(acc)}
+  end
+
+  defp cast_array_of_schemas(schema, [item | rest], acc) do
+    case cast_with_type(item, schema) do
+      {:ok, casted_item} ->
+        cast_array_of_schemas(schema, rest, [casted_item | acc])
 
       error ->
         error
     end
   end
 
-  def cast_array(_, [], acc), do: {:ok, Enum.reverse(acc)}
-
-  ## Validate schema
-  defp validate_field(data, {field_name, definitions}) do
-    value = get_value(data, field_name)
-    # remote transform option from definition
-    definitions
-    |> Enum.map(fn validation ->
-      do_validate(field_name, value, data, validation)
-    end)
-    |> collect_validation_result()
-  end
-
-  # handle custom validation for required
-  # Support dynamic require validation
-  defp do_validate(_, value, data, {:required, required}) when is_function(required) or is_tuple(required) do
-    case apply_function(required, value, data) do
-      {:error, _} = error ->
-        error
-
-      rs ->
-        is_required = rs not in [false, nil]
-        Valdi.validate(value, [{:required, is_required}])
+  defp apply_custom_cast_function(func, value, data) do
+    case apply_function_safely(func, value, data) do
+      :error -> {:error, "is invalid"}
+      result -> result
     end
   end
 
-  defp do_validate(_, value, _data, {:required, required}) do
-    Valdi.validate(value, [{:required, required}])
+  # ============================================================================
+  # Validation Logic
+  # ============================================================================
+
+  defp process_validation(%Result{} = result) do
+    final_result =
+      Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
+        if Result.get_error(acc, field_name) do
+          # Skip validation if there's already a casting error
+          acc
+        else
+          process_validation_field(acc, field)
+        end
+      end)
+
+    if final_result.valid? do
+      :ok
+    else
+      {:error, final_result}
+    end
   end
 
-  # skip validation for nil
-  defp do_validate(_, nil, _, _), do: :ok
+  defp process_validation_field(result, {field_name, definitions}) do
+    value = extract_field_value(result.valid_data, field_name)
 
-  # validate type
-  defp do_validate(_, value, _, {:type, type}) when is_map(type) do
-    # validate nested map
+    case validate_single_field(field_name, value, result.valid_data, definitions) do
+      :ok ->
+        result
+
+      {:error, error} ->
+        Result.put_error(result, field_name, error)
+    end
+  end
+
+  defp validate_single_field(field_name, value, all_data, definitions) do
+    definitions
+    |> Enum.map(&validate_single_rule(field_name, value, all_data, &1))
+    |> collect_validation_results()
+  end
+
+  defp validate_single_rule(_field_name, value, data, {:required, required_func})
+       when is_function(required_func) or is_tuple(required_func) do
+    case apply_function_safely(required_func, value, data) do
+      {:error, _} = error ->
+        error
+
+      result ->
+        is_required = result not in [false, nil]
+        Valdi.validate(value, required: is_required)
+    end
+  end
+
+  defp validate_single_rule(_field_name, value, _data, {:required, required}) do
+    Valdi.validate(value, required: required)
+  end
+
+  defp validate_single_rule(_field_name, nil, _data, _rule), do: :ok
+
+  defp validate_single_rule(_field_name, value, _data, {:type, %{} = nested_schema}) do
     if is_map(value) do
-      validate(value, type)
+      validate(value, nested_schema)
     else
       {:error, "is invalid"}
     end
   end
 
-  defp do_validate(_, value, _, {:type, {:array, type}}) when is_list(value) do
+  defp validate_single_rule(_field_name, value, _data, {:type, {:array, nested_type}}) when is_list(value) do
     value
-    |> Enum.map(fn item ->
-      do_validate(nil, item, value, {:type, type})
-    end)
+    |> Enum.map(&validate_single_rule(nil, &1, value, {:type, nested_type}))
     |> Enum.reverse()
-    |> collect_validation_result()
+    |> collect_validation_results()
   end
 
-  # validate module
-  defp do_validate(_, value, _, {:type, type}) do
-    if is_atom(type) and Kernel.function_exported?(type, :validate, 1) do
-      type.validate(value)
-    else
-      Valdi.validate(value, [{:type, type}])
-    end
+  defp validate_single_rule(_field_name, value, _data, {:type, type}) do
+    validate_type(value, type)
   end
 
-  # support custom validate fuction with whole data
-  defp do_validate(field_name, value, data, {:func, func}) do
-    case func do
-      {mod, func} -> apply(mod, func, [value, data])
-      {mod, func, args} -> apply(mod, func, args ++ [value, data])
-      func when is_function(func, 3) -> func.(field_name, value, data)
-      func when is_function(func) -> func.(value)
-      _ -> {:error, "invalid custom validation function"}
-    end
+  defp validate_single_rule(field_name, value, data, {:func, func}) do
+    apply_validation_function(func, field_name, value, data)
   end
 
-  defp do_validate(_, value, _, validator) do
+  defp validate_single_rule(_field_name, value, _data, validator) do
     Valdi.validate(value, [validator])
   end
 
-  defp collect_validation_result(results) do
-    summary =
-      Enum.reduce(results, {:ok, []}, fn
-        :ok, acc -> acc
-        {:error, %Skema.Result{} = result}, {_, acc_msg} -> {:error, [[result] | acc_msg]}
-        {:error, msg}, {_, acc_msg} when is_list(msg) -> {:error, [msg | acc_msg]}
-        {:error, msg}, {_, acc_msg} -> {:error, [[msg] | acc_msg]}
+  defp validate_type(value, type) do
+    cond do
+      is_atom(type) and function_exported?(type, :validate, 1) ->
+        type.validate(value)
+
+      is_atom(type) and function_exported?(type, :type, 0) ->
+        # Support Ecto.Type and custom type
+        Valdi.validate(value, type: type.type())
+
+      true ->
+        Valdi.validate(value, type: type)
+    end
+  end
+
+  defp apply_validation_function(func, field_name, value, data) do
+    case func do
+      {mod, func_name} ->
+        apply(mod, func_name, [value, data])
+
+      {mod, func_name, args} ->
+        apply(mod, func_name, args ++ [value, data])
+
+      func when is_function(func, 3) ->
+        func.(field_name, value, data)
+
+      func when is_function(func) ->
+        func.(value)
+
+      _ ->
+        {:error, "invalid custom validation function"}
+    end
+  end
+
+  defp collect_validation_results(results) do
+    case Enum.reduce(results, {:ok, []}, &accumulate_validation_result/2) do
+      {:ok, _} -> :ok
+      {:error, errors} -> {:error, Enum.concat(errors)}
+    end
+  end
+
+  defp accumulate_validation_result(:ok, acc), do: acc
+
+  defp accumulate_validation_result({:error, %Result{} = result}, {_, acc_msgs}) do
+    {:error, [[result] | acc_msgs]}
+  end
+
+  defp accumulate_validation_result({:error, msg}, {_, acc_msgs}) when is_list(msg) do
+    {:error, [msg | acc_msgs]}
+  end
+
+  defp accumulate_validation_result({:error, msg}, {_, acc_msgs}) do
+    {:error, [[msg] | acc_msgs]}
+  end
+
+  # ============================================================================
+  # Transformation Logic
+  # ============================================================================
+
+  defp process_transformation(%Result{} = result) do
+    final_result =
+      Enum.reduce(result.schema, result, fn {field_name, _} = field, acc ->
+        if Result.get_error(acc, field_name) do
+          # Skip transformation if there's an error
+          acc
+        else
+          process_transformation_field(acc, field)
+        end
       end)
 
-    case summary do
-      {:ok, _} ->
-        :ok
-
-      {:error, errors} ->
-        {:error, Enum.concat(errors)}
+    if final_result.valid? do
+      {:ok, final_result.valid_data}
+    else
+      {:error, final_result}
     end
   end
 
-  ## Transform schema
-  defp transform_field(data, {field_name, definitions}) do
-    value = get_value(data, field_name)
-    field_name = definitions[:as] || field_name
+  defp process_transformation_field(result, {field_name, definitions}) do
+    value = extract_field_value(result.valid_data, field_name)
+    target_field_name = definitions[:as] || field_name
 
-    result =
-      case definitions[:into] do
-        nil ->
-          {:ok, value}
+    case apply_transformation(definitions[:into], value, result.valid_data) do
+      {:ok, transformed_value} ->
+        Result.put_data(result, target_field_name, transformed_value)
 
-        func ->
-          apply_function(func, value, data)
-      end
+      {:error, error} ->
+        Result.put_error(result, target_field_name, error)
 
-    # support function return tuple or value
-    case result do
-      {status, value} when status in [:error, :ok] -> {status, {field_name, value}}
-      value -> {:ok, {field_name, value}}
+      transformed_value ->
+        Result.put_data(result, target_field_name, transformed_value)
     end
   end
 
-  # Apply custom function for validate, cast, and required
-  defp apply_function(func, value, data) do
+  defp apply_transformation(nil, value, _data), do: {:ok, value}
+
+  defp apply_transformation(transform_func, value, data) do
+    case apply_function_safely(transform_func, value, data) do
+      {status, result} when status in [:error, :ok] -> {status, result}
+      result -> {:ok, result}
+    end
+  end
+
+  # ============================================================================
+  # Utility Functions
+  # ============================================================================
+
+  defp apply_function_safely(func, value, data) do
     case func do
-      {mod, func} ->
+      {mod, func_name} ->
         cond do
-          Kernel.function_exported?(mod, func, 1) ->
-            apply(mod, func, [value])
+          function_exported?(mod, func_name, 1) ->
+            apply(mod, func_name, [value])
 
-          Kernel.function_exported?(mod, func, 2) ->
-            apply(mod, func, [value, data])
+          function_exported?(mod, func_name, 2) ->
+            apply(mod, func_name, [value, data])
 
           true ->
             {:error, "bad function"}
@@ -416,5 +569,24 @@ defmodule Skema do
       _ ->
         {:error, "bad function"}
     end
+  end
+
+  defp enhance_cast_errors_with_validation(%Result{} = result) do
+    # Run validation on successfully cast data to provide more comprehensive errors
+    validation_result = validate(result.valid_data, result.schema)
+
+    case validation_result do
+      {:error, %Result{errors: validation_errors}} ->
+        # Merge validation errors with cast errors
+        combined_errors = Map.merge(result.errors, validation_errors)
+        %{result | errors: combined_errors}
+
+      _ ->
+        result
+    end
+  end
+
+  defp format_error_response({:error, %Result{errors: errors}}) do
+    {:error, %{errors: errors}}
   end
 end
