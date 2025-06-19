@@ -34,7 +34,7 @@ by adding `skema` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:skema, "~> 0.3"}
+    {:skema, "~> 1.0"}
   ]
 end
 ```
