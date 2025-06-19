@@ -331,10 +331,16 @@ defmodule Skema do
 
   # validate module
   defp do_validate(_, value, _, {:type, type}) do
-    if is_atom(type) and Kernel.function_exported?(type, :validate, 1) do
-      type.validate(value)
-    else
-      Valdi.validate(value, [{:type, type}])
+    cond do
+      is_atom(type) and Kernel.function_exported?(type, :validate, 1) ->
+        type.validate(value)
+
+      is_atom(type) and Kernel.function_exported?(type, :type, 0) ->
+        # support Ecto.Type and custom type
+        Valdi.validate(value, [{:type, type.type()}])
+
+      true ->
+        Valdi.validate(value, [{:type, type}])
     end
   end
 
