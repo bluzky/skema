@@ -165,6 +165,36 @@ defschema User do
 end
 ```
 
+#### ⚠️ Important: Schema Definition Order
+
+When using `defschema` with nested schemas, **always define the nested schemas before the schemas that reference them**. This is a compile-time dependency requirement.
+
+**❌ Wrong - Will fail with "is invalid" error:**
+```elixir
+defschema HTTPRequestSchema do
+  field :auth, AuthSchema  # ← AuthSchema not yet defined!
+end
+
+defschema AuthSchema do
+  field :type, :string, required: true
+end
+```
+
+**✅ Correct - Define dependencies first:**
+```elixir
+# Define AuthSchema FIRST
+defschema AuthSchema do
+  field :type, :string, required: true
+  field :token, :string
+end
+
+# Then define schemas that reference it
+defschema HTTPRequestSchema do
+  field :url, :string, required: true
+  field :auth, AuthSchema  # ← Now AuthSchema exists!
+end
+```
+
 ### Transform data
 Transform allows you to modify and normalize data after casting and validation:
 
