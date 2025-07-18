@@ -179,6 +179,10 @@ defmodule Skema.Schema do
           iex> User.new(%OtherStruct{name: "Jane"})
           %User{name: "Jane", age: nil}
       """
+      def new(%__MODULE__{} = struct) do
+        struct
+      end
+
       def new(struct) when is_struct(struct) do
         struct(__MODULE__, Map.from_struct(struct))
       end
@@ -255,6 +259,10 @@ defmodule Skema.Schema do
 
       def cast_and_validate(_) do
         {:error, %{errors: %{_base: ["expected a map"]}}}
+      end
+
+      def load(params) do
+        cast_and_validate(params)
       end
 
       @doc """
