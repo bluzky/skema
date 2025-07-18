@@ -141,11 +141,15 @@ defmodule Skema do
         # For cast errors, also run validation on valid data to get complete error picture
         enhanced_result = enhance_cast_errors_with_validation(result)
         format_error_response({:error, enhanced_result})
-
-      {:error, %Result{}} = error ->
-        format_error_response(error)
     end
   end
+
+  @doc """
+  Shortcut for `cast_and_validate/2`.
+  """
+  @spec load(data :: map(), schema :: map() | module()) ::
+          {:ok, map()} | {:error, errors :: map()}
+  def load(data, schema), do: cast_and_validate(data, schema)
 
   @doc """
   Cast data to proper types according to schema.
