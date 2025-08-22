@@ -1,5 +1,26 @@
 defmodule TransformTest do
   use ExUnit.Case
+  use Skema
+
+  # Helper module for transform functions
+  defmodule TransformHelpers do
+    def format_display_name(_value, data) do
+      "#{data.name} (#{data.age})"
+    end
+  end
+
+  # Test schema for transform tests
+  defschema TransformableUser do
+    field(:name, :string, into: &String.upcase/1)
+    field(:email, :string, into: &String.downcase/1)
+    field(:age, :integer)
+    field(:display_name, :string, into: {TransformHelpers, :format_display_name})
+  end
+
+  # Schema without __fields__ for error testing
+  defmodule NonTransformableStruct do
+    defstruct [:name, :email]
+  end
 
   describe "Skema.transform/2" do
     test "transform field with simple function" do
@@ -304,6 +325,62 @@ defmodule TransformTest do
 
       assert {:ok, %{name: "john", email: "john@example.com"}} =
                Skema.transform(data, schema)
+    end
+  end
+
+  describe "Skema.transform/1 with struct" do
+    test "transforms struct data using schema __fields__" do
+      user = %TransformableUser{
+        name: "john doe",
+        email: "JOHN@EXAMPLE.COM",
+        age: 30,
+        display_name: "unused"
+      }
+
+      assert {:ok, result} = Skema.transform(user)
+      assert result.name == "JOHN DOE"
+      assert result.email == "john@example.com"
+      assert result.age == 30
+      assert result.display_name == "john doe (30)"
+    end
+
+    test "returns error for struct without __fields__" do
+      non_transformable = %NonTransformableStruct{name: "john", email: "john@example.com"}
+
+      assert {:error, "Schema Elixir.TransformTest.NonTransformableStruct does not support transform"} =
+               Skema.transform(non_transformable)
+    end
+  end
+
+  describe "Skema.transform/2 with schema module" do
+    test "transforms data using schema module" do
+      data = %{
+        name: "john doe",
+        email: "JOHN@EXAMPLE.COM",
+        age: 30,
+        display_name: "unused"
+      }
+
+      assert {:ok, result} = Skema.transform(data, TransformableUser)
+      assert result.name == "JOHN DOE"
+      assert result.email == "john@example.com"
+      assert result.age == 30
+      assert result.display_name == "john doe (30)"
+    end
+  end
+
+  describe "Skema.transform/2 with keyword list schema" do
+    test "transforms data using keyword list schema" do
+      schema = [
+        name: [into: &String.upcase/1],
+        email: [into: &String.downcase/1]
+      ]
+
+      data = %{name: "john doe", email: "JOHN@EXAMPLE.COM"}
+
+      assert {:ok, result} = Skema.transform(data, schema)
+      assert result.name == "JOHN DOE"
+      assert result.email == "john@example.com"
     end
   end
 end

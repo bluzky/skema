@@ -205,10 +205,65 @@ defmodule Skema do
   @doc """
   Transform data according to schema transformation rules.
 
+  Supports multiple function signatures:
+  - `transform(%SomeSchema{} = data)` - Transform struct using its schema's __fields__()
+  - `transform(data, schema_module)` - Transform data using a schema module
+  - `transform(data, schema_map)` - Transform data using a schema map
+  - `transform(data, schema_keyword_list)` - Transform data using a keyword list schema
+
+  ## Examples
+
+      # Using struct with schema
+      user = %UserSchema{name: "john", email: "JOHN@EXAMPLE.COM"}
+      {:ok, transformed} = Skema.transform(user)
+      # => %{name: "JOHN", email: "john@example.com"}
+
+      # Using schema module
+      data = %{name: "john", email: "JOHN@EXAMPLE.COM"}
+      {:ok, transformed} = Skema.transform(data, UserSchema)
+
+      # Using schema map
+      schema = %{name: [into: &String.upcase/1]}
+      {:ok, transformed} = Skema.transform(data, schema)
+
+  ## Transformation Context
+
+  When transformation functions access the `data` parameter, they receive the
+  **original input data**, not data that has been transformed by other fields.
+  This ensures transformations are independent and deterministic.
+
+      schema = %{
+        name: [into: &String.upcase/1],
+        display: [into: fn _value, data -> "Name: #{data.name}" end]
+      }
+      
+      data = %{name: "john"}
+      {:ok, result} = Skema.transform(data, schema)
+      # result.display will be "Name: john", not "Name: JOHN"
+
   Returns `{:ok, data}` if transformation succeeds, `{:error, result}` otherwise.
   """
-  @spec transform(data :: map(), schema :: map()) ::
+  @spec transform(data :: map() | struct(), schema :: map() | module()) ::
           {:ok, map()} | {:error, %Result{}}
+  def transform(%schema{} = data) do
+    # Handle struct data with schema that has __fields__()
+    if function_exported?(schema, :__fields__, 0) do
+      data_map = Map.from_struct(data)
+      transform(data_map, schema.__fields__())
+    else
+      {:error, "Schema #{schema} does not support transform"}
+    end
+  end
+
+  def transform(data, schema) when is_atom(schema) do
+    transform(data, schema.__fields__())
+  end
+
+  def transform(data, schema) when is_map(data) and is_list(schema) do
+    # Handle keyword list schemas (from __fields__())
+    transform(data, Map.new(schema))
+  end
+
   def transform(data, schema) when is_map(data) and is_map(schema) do
     schema
     |> prepare_schema()
