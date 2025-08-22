@@ -234,7 +234,7 @@ defmodule Skema do
 
       schema = %{
         name: [into: &String.upcase/1],
-        display: [into: fn _value, data -> "Name: #{data.name}" end]
+        display: [into: &String.upcase/1]
       }
       
       data = %{name: "john"}
