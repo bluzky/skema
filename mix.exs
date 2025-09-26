@@ -4,7 +4,7 @@ defmodule Skema.MixProject do
   def project do
     [
       app: :skema,
-      version: "1.3.1",
+      version: "1.3.2",
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -52,7 +52,7 @@ defmodule Skema.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:valdi, "~> 0.5"},
+      {:valdi, "~> 0.6"},
       {:ex_doc, "~> 0.27", only: [:dev]},
       {:excoveralls, "~> 0.16", only: :test},
       {:styler, "~> 0.11", only: [:dev, :test], runtime: false},
