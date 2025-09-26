@@ -244,7 +244,12 @@ defmodule Skema.JsonSchema do
   defp convert_type_to_json_schema(:utc_datetime), do: "string"
   defp convert_type_to_json_schema(:naive_datetime), do: "string"
   defp convert_type_to_json_schema({:array, _item_type}), do: "array"
-  defp convert_type_to_json_schema(_), do: nil
+  defp convert_type_to_json_schema(:any), do: nil  # Special case: :any should omit type
+  defp convert_type_to_json_schema(unknown_type) do
+    require Logger
+    Logger.warning("Unknown Skema type '#{inspect(unknown_type)}' encountered. Using 'string' as fallback.")
+    "string"  # Fallback to string type to maintain valid JSON Schema
+  end
 
   defp add_type_properties(json_field, :date, _field_def) do
     Map.put(json_field, "format", "date")
@@ -267,8 +272,8 @@ defmodule Skema.JsonSchema do
   end
 
   defp add_type_properties(json_field, {:array, item_type}, _field_def) do
-    items_schema = %{"type" => convert_type_to_json_schema(item_type)}
-    items_schema = if items_schema["type"], do: items_schema, else: %{}
+    item_json_type = convert_type_to_json_schema(item_type)
+    items_schema = if item_json_type, do: %{"type" => item_json_type}, else: %{}
     Map.put(json_field, "items", items_schema)
   end
 
@@ -427,8 +432,8 @@ defmodule Skema.JsonSchema do
     end)
   end
 
-  defp convert_json_field_to_skema(field_schema, is_required, _strict, default_type, atom_keys) do
-    type = convert_json_type_to_skema(field_schema, default_type, atom_keys)
+  defp convert_json_field_to_skema(field_schema, is_required, strict, default_type, atom_keys) do
+    type = convert_json_type_to_skema(field_schema, default_type, atom_keys, strict)
     default = Map.get(field_schema, "default")
 
     # If type is already a nested schema (map), return it directly
@@ -451,7 +456,7 @@ defmodule Skema.JsonSchema do
     end
   end
 
-  defp convert_json_type_to_skema(field_schema, default_type, atom_keys) do
+  defp convert_json_type_to_skema(field_schema, default_type, atom_keys, strict) do
     case Map.get(field_schema, "type") do
       "string" ->
         case Map.get(field_schema, "format") do
@@ -477,21 +482,33 @@ defmodule Skema.JsonSchema do
 
           properties ->
             required = Map.get(field_schema, "required", [])
-            convert_properties_to_schema(properties, required, false, default_type, atom_keys)
+            convert_properties_to_schema(properties, required, strict, default_type, atom_keys)
         end
 
       "array" ->
         case Map.get(field_schema, "items") do
           # Default to array of default_type when items not specified
           nil -> {:array, default_type}
-          items -> {:array, convert_json_type_to_skema(items, default_type, atom_keys)}
+          items -> {:array, convert_json_type_to_skema(items, default_type, atom_keys, strict)}
         end
 
       nil ->
-        default_type
+        if strict do
+          raise ArgumentError, "JSON Schema field missing required 'type' property: #{inspect(field_schema)}"
+        else
+          require Logger
+          Logger.warning("JSON Schema field missing 'type' property: #{inspect(field_schema)}. Defaulting to #{inspect(default_type)}.")
+          default_type
+        end
 
-      _ ->
-        default_type
+      unknown_type ->
+        if strict do
+          raise ArgumentError, "Unknown JSON Schema type '#{unknown_type}' in field: #{inspect(field_schema)}"
+        else
+          require Logger
+          Logger.warning("Unknown JSON Schema type '#{unknown_type}' in field #{inspect(field_schema)}. Defaulting to #{inspect(default_type)}.")
+          default_type
+        end
     end
   end
 
@@ -555,10 +572,8 @@ defmodule Skema.JsonSchema do
         field_def
 
       pattern ->
-        case Regex.compile(pattern) do
-          {:ok, regex} -> Keyword.put(field_def, :format, regex)
-          {:error, _} -> field_def
-        end
+        # Let Valdi handle the regex compilation - just pass the pattern string
+        Keyword.put(field_def, :format, pattern)
     end
   end
 

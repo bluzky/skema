@@ -630,8 +630,8 @@ defmodule Skema.JsonSchemaTest do
 
       assert result["email"][:type] == :string
       assert result["phone"][:type] == :string
-      assert Regex.source(result["email"][:format]) == ".+@.+\\..+"
-      assert Regex.source(result["phone"][:format]) == "^\\d{10}$"
+      assert result["email"][:format] == ".+@.+\\..+"
+      assert result["phone"][:format] == "^\\d{10}$"
     end
 
     test "converts enum constraints" do
@@ -780,7 +780,7 @@ defmodule Skema.JsonSchemaTest do
       assert result["profile"]["bio"][:type] == :string
       assert result["profile"]["bio"][:length] == [max: 500]
       assert result["profile"]["website"][:type] == :string
-      assert Regex.source(result["profile"]["website"][:format]) == "^https?://.+"
+      assert result["profile"]["website"][:format] == "^https?://.+"
     end
 
     test "handles nested required fields" do
@@ -866,6 +866,108 @@ defmodule Skema.JsonSchemaTest do
       assert result.profile.name[:required] == true
       assert result.profile.bio[:type] == :string
       refute result.profile.bio[:required]
+    end
+  end
+
+  describe "error handling and security" do
+
+    test "uses existing atoms when possible with atom_keys" do
+      # These atoms should already exist in the system
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{"type" => "string"},
+          "type" => %{"type" => "string"}
+        }
+      }
+
+      result = JsonSchema.to_schema(json_schema, atom_keys: true)
+      assert result.name[:type] == :string
+      assert result.type[:type] == :string
+    end
+
+    test "logs warnings for unknown types in non-strict mode" do
+      import ExUnit.CaptureLog
+
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "field" => %{"type" => "unknown_type"}
+        }
+      }
+
+      log = capture_log(fn ->
+        result = JsonSchema.to_schema(json_schema)
+        assert result["field"][:type] == :any
+      end)
+
+      assert log =~ "Unknown JSON Schema type 'unknown_type'"
+    end
+
+    test "raises errors for unknown types in strict mode" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "field" => %{"type" => "unknown_type"}
+        }
+      }
+
+      assert_raise ArgumentError, ~r/Unknown JSON Schema type 'unknown_type'/, fn ->
+        JsonSchema.to_schema(json_schema, strict: true)
+      end
+    end
+
+    test "logs warnings for missing type property" do
+      import ExUnit.CaptureLog
+
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "field" => %{}  # Missing type property
+        }
+      }
+
+      log = capture_log(fn ->
+        result = JsonSchema.to_schema(json_schema)
+        assert result["field"][:type] == :any
+      end)
+
+      assert log =~ "JSON Schema field missing 'type' property"
+    end
+
+    test "raises errors for missing type in strict mode" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "field" => %{}  # Missing type property
+        }
+      }
+
+      assert_raise ArgumentError, ~r/JSON Schema field missing required 'type' property/, fn ->
+        JsonSchema.to_schema(json_schema, strict: true)
+      end
+    end
+
+    test "passes regex patterns directly to Valdi" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "valid_field" => %{
+            "type" => "string",
+            "pattern" => "^[a-zA-Z]+$"
+          },
+          "invalid_field" => %{
+            "type" => "string",
+            "pattern" => "["  # Invalid regex - but Valdi will handle it
+          }
+        }
+      }
+
+      result = JsonSchema.to_schema(json_schema)
+
+      # Should pass the pattern strings directly without compilation
+      assert result["valid_field"][:format] == "^[a-zA-Z]+$"
+      assert result["invalid_field"][:format] == "["
     end
   end
 
