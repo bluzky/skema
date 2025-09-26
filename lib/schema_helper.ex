@@ -1,5 +1,20 @@
 defmodule Skema.SchemaHelper do
-  @moduledoc false
+  @moduledoc """
+  Internal utility module for processing and expanding schema definitions.
+
+  This module handles the normalization and expansion of schema field definitions,
+  converting shorthand syntax into fully expanded attribute lists. It processes
+  nested schemas, array types, and evaluates function-based default values.
+
+  ## Key Functions
+
+  - `expand/1` - Transforms a schema map by expanding each field definition
+  - Field normalization from shorthand to full attribute syntax
+  - Recursive processing of nested schemas and array types
+  - Default value evaluation for function-based defaults
+
+  This module is internal to Skema and not part of the public API.
+  """
 
   @spec expand(map()) :: map()
   def expand(schema) do

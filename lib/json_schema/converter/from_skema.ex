@@ -154,9 +154,14 @@ defmodule Skema.JsonSchema.Converter.FromSkema do
     |> add_number_constraints(field_def)
     |> add_format_constraints(field_def)
     |> add_inclusion_constraints(field_def)
+    |> apply_direct_constraints(field_def, direct_constraint_mappings())
   end
 
   defp add_length_constraints(json_field, field_def) do
+    add_nested_length_constraints(json_field, field_def)
+  end
+
+  defp add_nested_length_constraints(json_field, field_def) do
     case Keyword.get(field_def, :length) do
       nil ->
         json_field
@@ -210,6 +215,12 @@ defmodule Skema.JsonSchema.Converter.FromSkema do
   end
 
   defp add_number_constraints(json_field, field_def) do
+    json_field
+    |> add_nested_number_constraints(field_def)
+    |> add_exclusive_number_constraints(field_def)
+  end
+
+  defp add_nested_number_constraints(json_field, field_def) do
     case Keyword.get(field_def, :number) do
       nil ->
         json_field
@@ -257,6 +268,54 @@ defmodule Skema.JsonSchema.Converter.FromSkema do
       _ ->
         json_field
     end
+  end
+
+  defp add_exclusive_number_constraints(json_field, field_def) do
+    json_field
+    |> add_greater_than_constraint(field_def)
+    |> add_less_than_constraint(field_def)
+  end
+
+  defp add_greater_than_constraint(json_field, field_def) do
+    case Keyword.get(field_def, :greater_than) do
+      nil -> json_field
+      value ->
+        json_field
+        |> Map.put("minimum", value)
+        |> Map.put("exclusiveMinimum", true)
+    end
+  end
+
+  defp add_less_than_constraint(json_field, field_def) do
+    case Keyword.get(field_def, :less_than) do
+      nil -> json_field
+      value ->
+        json_field
+        |> Map.put("maximum", value)
+        |> Map.put("exclusiveMaximum", true)
+    end
+  end
+
+  # Direct constraint mappings from Skema to JSON Schema
+  defp direct_constraint_mappings do
+    [
+      {:min_length, "minLength"},
+      {:max_length, "maxLength"},
+      {:min_items, "minItems"},
+      {:max_items, "maxItems"},
+      {:min, "minimum"},
+      {:max, "maximum"}
+    ]
+  end
+
+  # Generic function to apply direct constraint mappings
+  defp apply_direct_constraints(json_field, field_def, mappings) do
+    Enum.reduce(mappings, json_field, fn {skema_key, json_key}, acc ->
+      case Keyword.get(field_def, skema_key) do
+        nil -> acc
+        value -> Map.put(acc, json_key, value)
+      end
+    end)
   end
 
   defp add_format_constraints(json_field, field_def) do
