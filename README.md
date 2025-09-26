@@ -15,6 +15,7 @@ Phoenix request params validation library.
         - [Transform data](#transform-data)
     - [Validation](#validation)
     - [Data Processing Pipeline](#data-processing-pipeline)
+    - [JSON Schema Conversion](#json-schema-conversion)
     - [Contributors](#contributors)
 
 ## Why Skema
@@ -25,6 +26,7 @@ Phoenix request params validation library.
 - Custom cast functions
 - Data transformation and normalization
 - Complete data processing pipeline (cast → validate → transform)
+- **Bidirectional JSON Schema conversion** for API documentation and interoperability
 
 ## Installation
 
@@ -374,6 +376,32 @@ with {:ok, cast_data} <- Skema.cast(raw_params, schema),
   # }
 end
 ```
+
+## JSON Schema Conversion
+
+Skema provides bidirectional conversion between Skema schema maps and JSON Schema format for API documentation and interoperability.
+
+```elixir
+# Convert Skema to JSON Schema
+schema = %{
+  name: [type: :string, required: true, length: [min: 2, max: 50]],
+  age: [type: :integer, number: [min: 0, max: 150]]
+}
+
+json_schema = Skema.JsonSchema.from_schema(schema, title: "User Schema")
+
+# Convert JSON Schema to Skema
+skema_schema = Skema.JsonSchema.to_schema(json_schema)
+```
+
+**Features:**
+- Full type and validation constraint mapping
+- Nested schema support
+- Pattern support (both `:format` and `:pattern`)
+- Security options for field name handling
+- Bidirectional conversion with data preservation
+
+For detailed examples, options, and limitations, see the [JSON Schema conversion documentation](docs/json_schema_conversion.md).
 
 ## Thank you
 If you find a bug or want to improve something, please send a pull request. Thank you!

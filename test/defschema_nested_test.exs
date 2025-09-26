@@ -17,7 +17,7 @@ defmodule DefSchemaNestedTest do
     defschema Employee do
       field(:name, :string, required: true)
       field(:email, :string, required: true, format: ~r/@/)
-      field(:salary, :integer, number: [min: 30000])
+      field(:salary, :integer, number: [min: 30_000])
       field(:address, Address, required: true)
     end
 
@@ -75,27 +75,28 @@ defmodule DefSchemaNestedTest do
       }
 
       assert {:ok, %Company{} = company} = Company.cast_and_validate(data)
-      
+
       # Verify top-level struct
       assert company.name == "Tech Corp"
       assert company.founded_year == 2010
-      
+
       # Verify nested struct types and values
       assert %Address{} = company.headquarters
       assert company.headquarters.street == "123 Tech St"
-      assert company.headquarters.state == "CA"  # default value
-      
+      # default value
+      assert company.headquarters.state == "CA"
+
       # Verify array of nested structs
       assert length(company.departments) == 1
       assert %Department{} = dept = Enum.at(company.departments, 0)
       assert dept.name == "Engineering"
-      
+
       # Verify deeply nested struct
       assert %Employee{} = dept.manager
       assert dept.manager.name == "Alice Johnson"
       assert %Address{} = dept.manager.address
       assert dept.manager.address.city == "Palo Alto"
-      
+
       # Verify array within nested struct
       assert length(dept.employees) == 1
       assert %Employee{} = employee = Enum.at(dept.employees, 0)
@@ -106,20 +107,25 @@ defmodule DefSchemaNestedTest do
     test "propagates validation errors through nested defschema structures" do
       data = %{
         "name" => "Tech Corp",
-        "founded_year" => "1799", # Too old
+        # Too old
+        "founded_year" => "1799",
         "headquarters" => %{
           "street" => "123 Tech St",
           "city" => "San Francisco",
-          "zip_code" => "9410" # Wrong length (should be 5 chars)
+          # Wrong length (should be 5 chars)
+          "zip_code" => "9410"
         },
         "departments" => [
           %{
             "name" => "Engineering",
-            "budget" => "-1000", # Negative budget
+            # Negative budget
+            "budget" => "-1000",
             "manager" => %{
               "name" => "Alice Johnson",
-              "email" => "alice-invalid-email", # Invalid email
-              "salary" => "25000", # Below minimum
+              # Invalid email
+              "email" => "alice-invalid-email",
+              # Below minimum
+              "salary" => "25000",
               "address" => %{
                 # Missing required street
                 "city" => "Palo Alto",
@@ -131,7 +137,7 @@ defmodule DefSchemaNestedTest do
       }
 
       assert {:error, %{errors: errors}} = Company.cast_and_validate(data)
-      
+
       # Should have validation errors at multiple levels
       assert Map.has_key?(errors, :founded_year)
       assert Map.has_key?(errors, :headquarters)
@@ -162,7 +168,8 @@ defmodule DefSchemaNestedTest do
 
       assert {:ok, %Company{} = company} = Company.cast_and_validate(data)
       assert company.headquarters.state == "CA"
-      assert company.departments == [] # default empty array
+      # default empty array
+      assert company.departments == []
     end
   end
 
@@ -208,34 +215,38 @@ defmodule DefSchemaNestedTest do
       assert {:ok, %Store{} = store} = Store.cast_and_validate(data)
       assert store.name == "Electronics Store"
       assert length(store.products) == 2
-      
+
       # First product
       laptop = Enum.at(store.products, 0)
       assert %Product{} = laptop
       assert laptop.title == "Laptop"
       assert laptop.price == 999.99
-      assert laptop.in_stock == true  # default
+      # default
+      assert laptop.in_stock == true
       assert length(laptop.categories) == 2
-      
+
       # Categories are structs
       electronics_cat = Enum.at(laptop.categories, 0)
       assert %Category{} = electronics_cat
       assert electronics_cat.name == "Electronics"
       assert electronics_cat.priority == 1
-      assert electronics_cat.description == ""  # default
-      
+      # default
+      assert electronics_cat.description == ""
+
       computers_cat = Enum.at(laptop.categories, 1)
       assert %Category{} = computers_cat
       assert computers_cat.name == "Computers"
-      assert computers_cat.priority == 5  # default
+      # default
+      assert computers_cat.priority == 5
       assert computers_cat.description == "Computing devices"
-      
+
       # Second product
       mouse = Enum.at(store.products, 1)
       assert %Product{} = mouse
       assert mouse.title == "Mouse"
       assert mouse.in_stock == false
-      assert mouse.categories == []  # default
+      # default
+      assert mouse.categories == []
     end
 
     test "handles validation errors in arrays of defschema structs" do
@@ -243,10 +254,13 @@ defmodule DefSchemaNestedTest do
         "name" => "Electronics Store",
         "products" => [
           %{
-            "title" => "AB", # Too short (min: 3)
-            "price" => "-10", # Negative price
+            # Too short (min: 3)
+            "title" => "AB",
+            # Negative price
+            "price" => "-10",
             "categories" => [
-              %{"name" => "Electronics", "priority" => "15"} # Priority too high (max: 10)
+              # Priority too high (max: 10)
+              %{"name" => "Electronics", "priority" => "15"}
             ]
           },
           %{
@@ -262,7 +276,7 @@ defmodule DefSchemaNestedTest do
       }
 
       assert {:error, %{errors: errors}} = Store.cast_and_validate(data)
-      
+
       # Should have errors for the products array
       assert Map.has_key?(errors, :products)
     end
@@ -302,7 +316,7 @@ defmodule DefSchemaNestedTest do
 
       # Using cast_and_validate
       assert {:ok, result1} = Person.cast_and_validate(data)
-      
+
       # Using separate cast and validate
       assert {:ok, cast_result} = Person.cast(data)
       assert :ok = Person.validate(cast_result)
@@ -317,29 +331,40 @@ defmodule DefSchemaNestedTest do
 
     test "cast_and_validate handles combined cast and validation errors" do
       data = %{
-        "name" => "J", # Too short
-        "age" => "not_a_number", # Cast error
+        # Too short
+        "name" => "J",
+        # Cast error
+        "age" => "not_a_number",
         "contact" => %{
-          "email" => "invalid-email", # Validation error
-          "phone" => "123" # Too short
+          # Validation error
+          "email" => "invalid-email",
+          # Too short
+          "phone" => "123"
         }
       }
 
       assert {:error, %{errors: cast_and_validate_errors}} = Person.cast_and_validate(data)
-      
+
       # Should have errors for multiple fields
-      assert Map.has_key?(cast_and_validate_errors, :age) # Cast error
-      assert Map.has_key?(cast_and_validate_errors, :name) # Validation error
-      assert Map.has_key?(cast_and_validate_errors, :contact) # Nested errors
+      # Cast error
+      assert Map.has_key?(cast_and_validate_errors, :age)
+      # Validation error
+      assert Map.has_key?(cast_and_validate_errors, :name)
+      # Nested errors
+      assert Map.has_key?(cast_and_validate_errors, :contact)
     end
 
     test "cast succeeds but validate fails for nested structs" do
       data = %{
-        "name" => "J", # Too short (validation error)
-        "age" => "30", # Valid
+        # Too short (validation error)
+        "name" => "J",
+        # Valid
+        "age" => "30",
         "contact" => %{
-          "email" => "john@example.com", # Valid
-          "phone" => "123" # Too short (validation error)
+          # Valid
+          "email" => "john@example.com",
+          # Too short (validation error)
+          "phone" => "123"
         }
       }
 
@@ -347,7 +372,7 @@ defmodule DefSchemaNestedTest do
       assert {:ok, person} = Person.cast(data)
       assert person.name == "J"
       assert person.age == 30
-      
+
       # But validation should fail
       assert {:error, %{errors: validation_errors}} = Person.validate(person)
       assert Map.has_key?(validation_errors, :name)
@@ -427,12 +452,13 @@ defmodule DefSchemaNestedTest do
       }
 
       assert {:ok, %Order{} = order} = Order.cast_and_validate(data)
-      
+
       # Verify order details
       assert order.id == "ORD-2024-001"
       assert order.customer_email == "customer@example.com"
-      assert order.status == "pending"  # default
-      
+      # default
+      assert order.status == "pending"
+
       # Verify items array
       assert length(order.items) == 2
       first_item = Enum.at(order.items, 0)
@@ -440,12 +466,13 @@ defmodule DefSchemaNestedTest do
       assert first_item.product_name == "Wireless Headphones"
       assert first_item.quantity == 2
       assert first_item.unit_price == 99.99
-      
+
       # Verify nested structs
       assert %ShippingAddress{} = order.shipping_address
       assert order.shipping_address.recipient == "John Doe"
-      assert order.shipping_address.country == "US"  # default
-      
+      # default
+      assert order.shipping_address.country == "US"
+
       assert %PaymentMethod{} = order.payment_method
       assert order.payment_method.type == "credit_card"
       assert order.payment_method.is_default == true
@@ -455,13 +482,16 @@ defmodule DefSchemaNestedTest do
     test "handles complex validation errors across multiple nested structures" do
       data = %{
         "id" => "ORD-2024-001",
-        "customer_email" => "invalid-email", # Invalid email
+        # Invalid email
+        "customer_email" => "invalid-email",
         "items" => [
           %{
             "product_id" => "PROD-123",
             "product_name" => "Wireless Headphones",
-            "quantity" => "0", # Invalid quantity (min: 1)
-            "unit_price" => "-99.99", # Invalid negative price
+            # Invalid quantity (min: 1)
+            "quantity" => "0",
+            # Invalid negative price
+            "unit_price" => "-99.99",
             "total_price" => "199.98"
           }
         ],
@@ -472,16 +502,18 @@ defmodule DefSchemaNestedTest do
           "postal_code" => "12345"
         },
         "payment_method" => %{
-          "type" => "bitcoin", # Invalid payment type
+          # Invalid payment type
+          "type" => "bitcoin",
           "is_default" => "true"
         },
-        "subtotal" => "-10", # Invalid negative subtotal
+        # Invalid negative subtotal
+        "subtotal" => "-10",
         "tax" => "17.60",
         "total" => "237.57"
       }
 
       assert {:error, %{errors: errors}} = Order.cast_and_validate(data)
-      
+
       # Should have validation errors across multiple nested structures
       assert Map.has_key?(errors, :customer_email)
       assert Map.has_key?(errors, :items)
@@ -505,13 +537,14 @@ defmodule DefSchemaNestedTest do
 
     test "handles large arrays of nested defschema structs" do
       # Generate 200 items
-      items = Enum.map(1..200, fn i ->
-        %{
-          "id" => to_string(i),
-          "name" => "Item #{i}",
-          "value" => to_string(i * 1.5)
-        }
-      end)
+      items =
+        Enum.map(1..200, fn i ->
+          %{
+            "id" => to_string(i),
+            "name" => "Item #{i}",
+            "value" => to_string(i * 1.5)
+          }
+        end)
 
       data = %{
         "name" => "Large Container",
@@ -521,14 +554,14 @@ defmodule DefSchemaNestedTest do
       assert {:ok, %Container{} = container} = Container.cast_and_validate(data)
       assert container.name == "Large Container"
       assert length(container.items) == 200
-      
+
       # Verify some items are properly cast to structs
       first_item = Enum.at(container.items, 0)
       assert %SimpleItem{} = first_item
       assert first_item.id == 1
       assert first_item.name == "Item 1"
       assert first_item.value == 1.5
-      
+
       last_item = Enum.at(container.items, 199)
       assert %SimpleItem{} = last_item
       assert last_item.id == 200
@@ -556,6 +589,7 @@ defmodule DefSchemaNestedTest do
           {:error, _} -> {:error, "invalid date format"}
         end
       end
+
       def parse_iso_date(_), do: {:error, "must be a string"}
     end
 
@@ -584,7 +618,7 @@ defmodule DefSchemaNestedTest do
 
       assert {:ok, %Event{} = event} = Event.cast_and_validate(data)
       assert event.title == "Conference 2024"
-      
+
       assert %EventDate{} = event.event_date
       assert event.event_date.start_date == ~D[2024-06-15]
       assert event.event_date.end_date == ~D[2024-06-17]

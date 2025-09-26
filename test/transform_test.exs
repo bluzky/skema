@@ -4,6 +4,7 @@ defmodule TransformTest do
 
   # Helper module for transform functions
   defmodule TransformHelpers do
+    @moduledoc false
     def format_display_name(_value, data) do
       "#{data.name} (#{data.age})"
     end
@@ -19,6 +20,7 @@ defmodule TransformTest do
 
   # Schema without __fields__ for error testing
   defmodule NonTransformableStruct do
+    @moduledoc false
     defstruct [:name, :email]
   end
 

@@ -118,11 +118,13 @@ defmodule NestedSchemaTest do
 
       data = %{
         "company" => %{
-          "name" => "TC", # Too short
+          # Too short
+          "name" => "TC",
           "address" => %{
             "street" => "123 Main St",
             "coordinates" => %{
-              "lat" => "200", # Out of range
+              # Out of range
+              "lat" => "200",
               "lng" => "-122.4194"
             }
           }
@@ -130,7 +132,7 @@ defmodule NestedSchemaTest do
       }
 
       assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, schema)
-      
+
       # Check that errors are properly nested - the actual structure has Result structs
       assert %{company: [%Skema.Result{errors: company_errors}]} = errors
       assert is_list(company_errors[:name])
@@ -143,11 +145,13 @@ defmodule NestedSchemaTest do
     test "handles array of simple nested schemas" do
       schema = %{
         users: [
-          type: {:array, %{
-            name: [type: :string, required: true],
-            email: [type: :string, required: true],
-            active: [type: :boolean, default: true]
-          }}
+          type:
+            {:array,
+             %{
+               name: [type: :string, required: true],
+               email: [type: :string, required: true],
+               active: [type: :boolean, default: true]
+             }}
         ]
       }
 
@@ -161,29 +165,34 @@ defmodule NestedSchemaTest do
       assert {:ok, result} = Skema.cast_and_validate(data, schema)
       assert length(result.users) == 2
       assert Enum.at(result.users, 0).name == "John"
-      assert Enum.at(result.users, 0).active == true  # default
+      # default
+      assert Enum.at(result.users, 0).active == true
       assert Enum.at(result.users, 1).name == "Jane"
-      assert Enum.at(result.users, 1).active == false  # cast from "false"
+      # cast from "false"
+      assert Enum.at(result.users, 1).active == false
     end
 
     test "handles array with mixed valid and invalid nested objects" do
       schema = %{
         items: [
-          type: {:array, %{
-            id: [type: :integer, required: true],
-            name: [type: :string, required: true, length: [min: 2]]
-          }}
+          type:
+            {:array,
+             %{
+               id: [type: :integer, required: true],
+               name: [type: :string, required: true, length: [min: 2]]
+             }}
         ]
       }
 
       data = %{
         "items" => [
-          %{"id" => "not_int", "name" => "X"} # Both invalid to ensure error
+          # Both invalid to ensure error
+          %{"id" => "not_int", "name" => "X"}
         ]
       }
 
       assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, schema)
-      
+
       # Should contain errors from the invalid item - check actual structure
       assert %{items: %Skema.Result{errors: item_errors}} = errors
       assert Map.has_key?(item_errors, :id) or Map.has_key?(item_errors, :name)
@@ -192,9 +201,11 @@ defmodule NestedSchemaTest do
     test "handles empty array of nested schemas" do
       schema = %{
         tags: [
-          type: {:array, %{
-            name: [type: :string, required: true]
-          }}
+          type:
+            {:array,
+             %{
+               name: [type: :string, required: true]
+             }}
         ]
       }
 
@@ -207,9 +218,11 @@ defmodule NestedSchemaTest do
     test "handles nil array of nested schemas" do
       schema = %{
         optional_items: [
-          type: {:array, %{
-            value: [type: :string]
-          }}
+          type:
+            {:array,
+             %{
+               value: [type: :string]
+             }}
         ]
       }
 
@@ -230,19 +243,23 @@ defmodule NestedSchemaTest do
             email: [type: :string, required: true]
           },
           tags: [
-            type: {:array, %{
-              name: [type: :string, required: true],
-              category: [type: :string, default: "general"]
-            }}
+            type:
+              {:array,
+               %{
+                 name: [type: :string, required: true],
+                 category: [type: :string, default: "general"]
+               }}
           ],
           comments: [
-            type: {:array, %{
-              text: [type: :string, required: true],
-              author: %{
-                name: [type: :string, required: true],
-                email: [type: :string]
-              }
-            }}
+            type:
+              {:array,
+               %{
+                 text: [type: :string, required: true],
+                 author: %{
+                   name: [type: :string, required: true],
+                   email: [type: :string]
+                 }
+               }}
           ]
         }
       }
@@ -278,7 +295,8 @@ defmodule NestedSchemaTest do
       assert result.blog_post.title == "Elixir is Great"
       assert result.blog_post.author.name == "John Doe"
       assert length(result.blog_post.tags) == 2
-      assert Enum.at(result.blog_post.tags, 0).category == "general"  # default
+      # default
+      assert Enum.at(result.blog_post.tags, 0).category == "general"
       assert Enum.at(result.blog_post.tags, 1).category == "tech"
       assert length(result.blog_post.comments) == 2
       assert Enum.at(result.blog_post.comments, 1).author.email == nil
@@ -287,15 +305,19 @@ defmodule NestedSchemaTest do
     test "handles array of objects with nested arrays" do
       schema = %{
         departments: [
-          type: {:array, %{
-            name: [type: :string, required: true],
-            employees: [
-              type: {:array, %{
-                name: [type: :string, required: true],
-                skills: [type: {:array, :string}, default: []]
-              }}
-            ]
-          }}
+          type:
+            {:array,
+             %{
+               name: [type: :string, required: true],
+               employees: [
+                 type:
+                   {:array,
+                    %{
+                      name: [type: :string, required: true],
+                      skills: [type: {:array, :string}, default: []]
+                    }}
+               ]
+             }}
         ]
       }
 
@@ -329,8 +351,9 @@ defmodule NestedSchemaTest do
       alice = Enum.at(eng_dept.employees, 0)
       bob = Enum.at(eng_dept.employees, 1)
       assert alice.skills == ["Elixir", "Phoenix"]
-      assert bob.skills == []  # default
-      
+      # default
+      assert bob.skills == []
+
       design_dept = Enum.at(result.departments, 1)
       assert design_dept.employees == []
     end
@@ -346,66 +369,77 @@ defmodule NestedSchemaTest do
 
       data = %{"user" => "not_an_object"}
 
-      assert {:error, %{errors: %{user: ["is invalid"]}}} = 
-        Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: %{user: ["is invalid"]}}} =
+               Skema.cast_and_validate(data, schema)
     end
 
     test "handles invalid array for nested array schema" do
       schema = %{
-        items: [type: {:array, :string}] # Use simple array first
+        # Use simple array first
+        items: [type: {:array, :string}]
       }
 
       data = %{"items" => "not_an_array"}
 
       # This should fail during casting because array expects a list
-      assert {:error, %{errors: %{items: ["is invalid"]}}} = 
-        Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: %{items: ["is invalid"]}}} =
+               Skema.cast_and_validate(data, schema)
     end
 
     test "handles array containing non-objects for nested schema array" do
       schema = %{
         users: [
-          type: {:array, %{
-            name: [type: :string, required: true]
-          }}
+          type:
+            {:array,
+             %{
+               name: [type: :string, required: true]
+             }}
         ]
       }
 
       data = %{"users" => [%{"name" => "Valid"}, "invalid_item", %{"name" => "Also Valid"}]}
 
       # This fails early when trying to cast "invalid_item" as a nested schema
-      assert {:error, %{errors: %{users: ["is invalid"]}}} = 
-        Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: %{users: ["is invalid"]}}} =
+               Skema.cast_and_validate(data, schema)
     end
 
     test "aggregates errors from multiple nested objects in array" do
       schema = %{
         products: [
-          type: {:array, %{
-            name: [type: :string, required: true, length: [min: 3]],
-            price: [type: :float, number: [min: 0]]
-          }}
+          type:
+            {:array,
+             %{
+               name: [type: :string, required: true, length: [min: 3]],
+               price: [type: :float, number: [min: 0]]
+             }}
         ]
       }
 
       data = %{
         "products" => [
-          %{"name" => "A", "price" => "-5"}, # Both invalid
-          %{"name" => "Valid Product", "price" => "10.99"}, # Valid
-          %{"price" => "15.00"} # Missing required name
+          # Both invalid
+          %{"name" => "A", "price" => "-5"},
+          # Valid
+          %{"name" => "Valid Product", "price" => "10.99"},
+          # Missing required name
+          %{"price" => "15.00"}
         ]
       }
 
-      assert {:error, %{errors: %{products: results}}} = 
-        Skema.cast_and_validate(data, schema)
-      
+      assert {:error, %{errors: %{products: results}}} =
+               Skema.cast_and_validate(data, schema)
+
       # Should have multiple Result structs with errors
       assert is_list(results)
-      assert Enum.any?(results, fn 
-        %Skema.Result{errors: errors} when is_map(errors) -> 
-          Map.has_key?(errors, :name) or Map.has_key?(errors, :price)
-        _ -> false
-      end)
+
+      assert Enum.any?(results, fn
+               %Skema.Result{errors: errors} when is_map(errors) ->
+                 Map.has_key?(errors, :name) or Map.has_key?(errors, :price)
+
+               _ ->
+                 false
+             end)
     end
 
     test "handles missing required fields in deeply nested structures" do
@@ -420,10 +454,12 @@ defmodule NestedSchemaTest do
             }
           },
           items: [
-            type: {:array, %{
-              product_id: [type: :string, required: true],
-              quantity: [type: :integer, required: true, number: [min: 1]]
-            }}
+            type:
+              {:array,
+               %{
+                 product_id: [type: :string, required: true],
+                 quantity: [type: :integer, required: true, number: [min: 1]]
+               }}
           ]
         }
       }
@@ -441,7 +477,8 @@ defmodule NestedSchemaTest do
           "items" => [
             %{
               "product_id" => "item1",
-              "quantity" => "0" # Invalid (less than 1)
+              # Invalid (less than 1)
+              "quantity" => "0"
             },
             %{
               # Missing both product_id and quantity
@@ -451,11 +488,12 @@ defmodule NestedSchemaTest do
       }
 
       assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, schema)
-      
+
       # Verify nested error structure with Result structs
       assert %{order: [%Skema.Result{errors: order_errors}]} = errors
-      assert is_list(order_errors[:id]) # Missing required id
-      
+      # Missing required id
+      assert is_list(order_errors[:id])
+
       # Check for validation errors in nested structures
       assert Map.has_key?(order_errors, :customer) or Map.has_key?(order_errors, :items)
     end
@@ -470,12 +508,14 @@ defmodule NestedSchemaTest do
           {:error, _} -> {:error, "invalid date format"}
         end
       end
+
       def parse_date(_), do: {:error, "must be a string"}
 
       def parse_tags(tags_string) when is_binary(tags_string) do
         result = tags_string |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
         {:ok, result}
       end
+
       def parse_tags(tags) when is_list(tags), do: {:ok, tags}
       def parse_tags(_), do: {:error, "must be string or list"}
     end
@@ -526,13 +566,14 @@ defmodule NestedSchemaTest do
           "name" => "John",
           "profile" => %{
             "birth_date" => "invalid-date",
-            "interests" => 123 # Not string or array
+            # Not string or array
+            "interests" => 123
           }
         }
       }
 
       assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, schema)
-      
+
       # The actual structure is not a list but a single Result
       assert %{user: %Skema.Result{errors: user_errors}} = errors
       # Check for errors in the nested profile structure
@@ -544,26 +585,29 @@ defmodule NestedSchemaTest do
     test "handles reasonably large nested structures" do
       schema = %{
         data: [
-          type: {:array, %{
-            id: [type: :integer, required: true],
-            attributes: %{
-              name: [type: :string, required: true],
-              value: [type: :float, default: 0.0]
-            }
-          }}
+          type:
+            {:array,
+             %{
+               id: [type: :integer, required: true],
+               attributes: %{
+                 name: [type: :string, required: true],
+                 value: [type: :float, default: 0.0]
+               }
+             }}
         ]
       }
 
       # Generate 100 items
-      items = Enum.map(1..100, fn i ->
-        %{
-          "id" => to_string(i),
-          "attributes" => %{
-            "name" => "Item #{i}",
-            "value" => to_string(i * 1.5)
+      items =
+        Enum.map(1..100, fn i ->
+          %{
+            "id" => to_string(i),
+            "attributes" => %{
+              "name" => "Item #{i}",
+              "value" => to_string(i * 1.5)
+            }
           }
-        }
-      end)
+        end)
 
       data = %{"data" => items}
 
