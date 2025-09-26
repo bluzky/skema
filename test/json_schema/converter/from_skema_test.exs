@@ -397,4 +397,84 @@ defmodule Skema.JsonSchema.Converter.FromSkemaTest do
       assert result["description"] == "Schema for user validation"
     end
   end
+
+  describe "direct constraint support" do
+    test "handles direct length constraints" do
+      schema = %{
+        name: [type: :string, min_length: 2, max_length: 50],
+        tags: [type: {:array, :string}, min_items: 1, max_items: 10]
+      }
+
+      result = JsonSchema.from_schema(schema)
+
+      assert result["properties"]["name"]["minLength"] == 2
+      assert result["properties"]["name"]["maxLength"] == 50
+      assert result["properties"]["tags"]["minItems"] == 1
+      assert result["properties"]["tags"]["maxItems"] == 10
+    end
+
+    test "handles direct number constraints" do
+      schema = %{
+        age: [type: :integer, min: 0, max: 150],
+        score: [type: :float, greater_than: 0, less_than: 100]
+      }
+
+      result = JsonSchema.from_schema(schema)
+
+      assert result["properties"]["age"]["minimum"] == 0
+      assert result["properties"]["age"]["maximum"] == 150
+      assert result["properties"]["score"]["minimum"] == 0
+      assert result["properties"]["score"]["exclusiveMinimum"] == true
+      assert result["properties"]["score"]["maximum"] == 100
+      assert result["properties"]["score"]["exclusiveMaximum"] == true
+    end
+
+    test "direct constraints take precedence over legacy constraints" do
+      schema = %{
+        name: [type: :string, length: [min: 1], min_length: 5],
+        age: [type: :integer, number: [min: 10], min: 18]
+      }
+
+      result = JsonSchema.from_schema(schema)
+
+      # Direct constraints should override legacy ones
+      assert result["properties"]["name"]["minLength"] == 5
+      assert result["properties"]["age"]["minimum"] == 18
+    end
+
+    test "combines all constraint types correctly" do
+      schema = %{
+        username: [
+          type: :string,
+          min_length: 3,
+          max_length: 20,
+          pattern: ~r/^[a-zA-Z0-9_]+$/,
+          required: true
+        ],
+        ratings: [
+          type: {:array, :integer},
+          min_items: 1,
+          max_items: 5,
+          default: []
+        ]
+      }
+
+      result = JsonSchema.from_schema(schema)
+
+      username_props = result["properties"]["username"]
+      assert username_props["type"] == "string"
+      assert username_props["minLength"] == 3
+      assert username_props["maxLength"] == 20
+      assert username_props["pattern"] == "^[a-zA-Z0-9_]+$"
+
+      ratings_props = result["properties"]["ratings"]
+      assert ratings_props["type"] == "array"
+      assert ratings_props["minItems"] == 1
+      assert ratings_props["maxItems"] == 5
+      assert ratings_props["default"] == []
+      assert ratings_props["items"]["type"] == "integer"
+
+      assert result["required"] == ["username"]
+    end
+  end
 end
