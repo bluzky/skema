@@ -497,7 +497,7 @@ defmodule Skema do
   end
 
   defp validate_single_rule(_field_name, value, _data, validator) do
-    Valdi.validate(value, [validator])
+    Valdi.validate(value, [validator], ignore_unknown: true)
   end
 
   defp validate_type(value, type) do
