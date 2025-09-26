@@ -236,6 +236,35 @@ The Skema to JSON Schema converter transforms Skema schema definitions into stan
 }
 ```
 
+### Documentation
+
+```elixir
+# Doc fields
+%{
+  name: [type: :string, doc: "The user's full name"],
+  age: [type: :integer, doc: "Age in years"],
+  email: [type: :string, doc: "Contact email address"]
+}
+
+# JSON Schema
+{
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The user's full name"
+    },
+    "age": {
+      "type": "integer",
+      "description": "Age in years"
+    },
+    "email": {
+      "type": "string",
+      "description": "Contact email address"
+    }
+  }
+}
+```
+
 ## Complex Example
 
 ```elixir

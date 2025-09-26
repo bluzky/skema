@@ -29,8 +29,8 @@ defmodule Skema.JsonSchema do
 
       # Skema to JSON Schema
       schema = %{
-        name: [type: :string, required: true, length: [min: 2, max: 50]],
-        age: [type: :integer, number: [min: 0, max: 150]],
+        name: [type: :string, required: true, length: [min: 2, max: 50], doc: "User's full name"],
+        age: [type: :integer, number: [min: 0, max: 150], doc: "Age in years"],
         tags: [type: {:array, :string}]
       }
 
@@ -40,8 +40,8 @@ defmodule Skema.JsonSchema do
       json_schema = %{
         "type" => "object",
         "properties" => %{
-          "name" => %{"type" => "string", "minLength" => 2, "maxLength" => 50},
-          "age" => %{"type" => "integer", "minimum" => 0, "maximum" => 150},
+          "name" => %{"type" => "string", "minLength" => 2, "maxLength" => 50, "description" => "User's full name"},
+          "age" => %{"type" => "integer", "minimum" => 0, "maximum" => 150, "description" => "Age in years"},
           "tags" => %{"type" => "array", "items" => %{"type" => "string"}}
         },
         "required" => ["name"]
@@ -213,6 +213,10 @@ defmodule Skema.JsonSchema do
 
     # Add default value if present
     json_field = if default != nil, do: Map.put(json_field, "default", default), else: json_field
+
+    # Add description from doc field
+    doc = Keyword.get(field_def, :doc)
+    json_field = if doc != nil, do: Map.put(json_field, "description", doc), else: json_field
 
     # Add type-specific properties
     json_field = add_type_properties(json_field, type, field_def)
@@ -434,6 +438,10 @@ defmodule Skema.JsonSchema do
       field_def = [type: type]
       field_def = if is_required, do: Keyword.put(field_def, :required, true), else: field_def
       field_def = if default != nil, do: Keyword.put(field_def, :default, default), else: field_def
+
+      # Add doc field from description
+      description = Map.get(field_schema, "description")
+      field_def = if description != nil, do: Keyword.put(field_def, :doc, description), else: field_def
 
       field_def
       |> add_skema_length_constraints(field_schema)

@@ -242,6 +242,45 @@ defmodule Skema.JsonSchemaTest do
     end
   end
 
+  describe "from_schema/2 - documentation" do
+    test "converts doc field to description" do
+      schema = %{
+        name: [type: :string, doc: "The user's full name"],
+        age: [type: :integer, doc: "Age in years"],
+        email: [type: :string, doc: "Contact email address"]
+      }
+
+      result = JsonSchema.from_schema(schema)
+
+      assert result["properties"]["name"] == %{
+        "type" => "string",
+        "description" => "The user's full name"
+      }
+
+      assert result["properties"]["age"] == %{
+        "type" => "integer",
+        "description" => "Age in years"
+      }
+
+      assert result["properties"]["email"] == %{
+        "type" => "string",
+        "description" => "Contact email address"
+      }
+    end
+
+    test "handles fields without doc" do
+      schema = %{
+        name: [type: :string, doc: "Has documentation"],
+        age: [type: :integer]  # No doc field
+      }
+
+      result = JsonSchema.from_schema(schema)
+
+      assert result["properties"]["name"]["description"] == "Has documentation"
+      refute Map.has_key?(result["properties"]["age"], "description")
+    end
+  end
+
   describe "from_schema/2 - default values" do
     test "includes default values" do
       schema = %{
@@ -619,6 +658,75 @@ defmodule Skema.JsonSchemaTest do
     end
   end
 
+  describe "to_schema/2 - documentation" do
+    test "converts description to doc field" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{
+            "type" => "string",
+            "description" => "The user's full name"
+          },
+          "age" => %{
+            "type" => "integer",
+            "description" => "Age in years"
+          },
+          "email" => %{
+            "type" => "string",
+            "description" => "Contact email address"
+          }
+        }
+      }
+
+      result = JsonSchema.to_schema(json_schema)
+
+      assert result["name"][:type] == :string
+      assert result["name"][:doc] == "The user's full name"
+      assert result["age"][:type] == :integer
+      assert result["age"][:doc] == "Age in years"
+      assert result["email"][:type] == :string
+      assert result["email"][:doc] == "Contact email address"
+    end
+
+    test "handles fields without description" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{
+            "type" => "string",
+            "description" => "Has documentation"
+          },
+          "age" => %{
+            "type" => "integer"
+            # No description field
+          }
+        }
+      }
+
+      result = JsonSchema.to_schema(json_schema)
+
+      assert result["name"][:doc] == "Has documentation"
+      refute Keyword.has_key?(result["age"], :doc)
+    end
+
+    test "handles atom_keys with documentation" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{
+            "type" => "string",
+            "description" => "The user's name"
+          }
+        }
+      }
+
+      result = JsonSchema.to_schema(json_schema, atom_keys: true)
+
+      assert result.name[:type] == :string
+      assert result.name[:doc] == "The user's name"
+    end
+  end
+
   describe "to_schema/2 - default values" do
     test "includes default values" do
       json_schema = %{
@@ -806,6 +914,25 @@ defmodule Skema.JsonSchemaTest do
       assert is_map(converted_schema["profile"])
       assert converted_schema["profile"]["bio"][:type] == :string
       assert converted_schema["profile"]["bio"][:length] == [max: 500]
+    end
+
+    test "preserves documentation in round-trip conversion" do
+      original_schema = %{
+        name: [type: :string, required: true, doc: "User's full name"],
+        age: [type: :integer, doc: "Age in years"],
+        profile: %{
+          bio: [type: :string, doc: "Short biography"]
+        }
+      }
+
+      # Convert to JSON Schema and back
+      json_schema = JsonSchema.from_schema(original_schema)
+      converted_schema = JsonSchema.to_schema(json_schema)
+
+      # Should preserve documentation
+      assert converted_schema["name"][:doc] == "User's full name"
+      assert converted_schema["age"][:doc] == "Age in years"
+      assert converted_schema["profile"]["bio"][:doc] == "Short biography"
     end
   end
 end

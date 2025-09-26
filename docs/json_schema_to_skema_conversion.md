@@ -250,6 +250,37 @@ The JSON Schema to Skema converter transforms standard JSON Schema documents int
 }
 ```
 
+### Documentation
+
+```json
+// JSON Schema with descriptions
+{
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The user's full name"
+    },
+    "age": {
+      "type": "integer",
+      "description": "Age in years"
+    },
+    "email": {
+      "type": "string",
+      "description": "Contact email address"
+    }
+  }
+}
+```
+
+```elixir
+# Skema with doc fields
+%{
+  name: [type: :string, doc: "The user's full name"],
+  age: [type: :integer, doc: "Age in years"],
+  email: [type: :string, doc: "Contact email address"]
+}
+```
+
 ## Complex Example
 
 ```json
