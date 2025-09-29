@@ -12,13 +12,28 @@ defmodule Skema.JsonSchema.Converter.ToSkema do
   - `atom_keys` - Convert field names to atoms (default: false, uses strings for security)
   - `strict` - When false, skip unsupported features instead of raising (default: false)
   - `default_type` - Default type when type is not specified (default: :any)
+  - `per_field_required` - When true, check for per-field required property instead of required array (default: false)
   """
-  def convert_properties_to_schema(properties, required_fields, strict, default_type, atom_keys) do
-    Enum.reduce(properties, %{}, fn {field_name, field_schema}, acc ->
-      field_key = if atom_keys, do: String.to_atom(field_name), else: field_name
-      is_required = field_name in required_fields
+  def convert_properties_to_schema(properties, required_fields, opts \\ []) do
+    # Set defaults once
+    opts = Keyword.merge([
+      atom_keys: false,
+      strict: false,
+      default_type: :any,
+      per_field_required: false
+    ], opts)
 
-      field_def = convert_json_field_to_skema(field_schema, is_required, strict, default_type, atom_keys)
+    Enum.reduce(properties, %{}, fn {field_name, field_schema}, acc ->
+      field_key = if opts[:atom_keys], do: String.to_atom(field_name), else: field_name
+
+      # Check required based on the per_field_required option
+      is_required = if opts[:per_field_required] do
+        Map.get(field_schema, "required") == true
+      else
+        field_name in required_fields
+      end
+
+      field_def = convert_json_field_to_skema(field_schema, is_required, opts)
       Map.put(acc, field_key, field_def)
     end)
   end
@@ -26,8 +41,8 @@ defmodule Skema.JsonSchema.Converter.ToSkema do
   @doc """
   Converts a single JSON Schema field to Skema field definition.
   """
-  def convert_json_field_to_skema(field_schema, is_required, strict, default_type, atom_keys) do
-    type = convert_json_type_to_skema(field_schema, default_type, atom_keys, strict)
+  def convert_json_field_to_skema(field_schema, is_required, opts) do
+    type = convert_json_type_to_skema(field_schema, opts)
     default = Map.get(field_schema, "default")
 
     # If type is already a nested schema (map), return it directly
@@ -51,7 +66,7 @@ defmodule Skema.JsonSchema.Converter.ToSkema do
   end
 
   # Type conversion from JSON Schema to Skema
-  defp convert_json_type_to_skema(field_schema, default_type, atom_keys, strict) do
+  defp convert_json_type_to_skema(field_schema, opts) do
     case Map.get(field_schema, "type") do
       "string" ->
         case Map.get(field_schema, "format") do
@@ -75,30 +90,30 @@ defmodule Skema.JsonSchema.Converter.ToSkema do
           nil -> :map
           properties ->
             required = Map.get(field_schema, "required", [])
-            convert_properties_to_schema(properties, required, strict, default_type, atom_keys)
+            convert_properties_to_schema(properties, required, opts)
         end
 
       "array" ->
         case Map.get(field_schema, "items") do
           # Default to array of default_type when items not specified
-          nil -> {:array, default_type}
-          items -> {:array, convert_json_type_to_skema(items, default_type, atom_keys, strict)}
+          nil -> {:array, opts[:default_type]}
+          items -> {:array, convert_json_type_to_skema(items, opts)}
         end
 
       nil ->
-        if strict do
+        if opts[:strict] do
           raise ArgumentError, "JSON Schema field missing required 'type' property: #{inspect(field_schema)}"
         else
-          Logger.warning("JSON Schema field missing 'type' property: #{inspect(field_schema)}. Defaulting to #{inspect(default_type)}.")
-          default_type
+          Logger.warning("JSON Schema field missing 'type' property: #{inspect(field_schema)}. Defaulting to #{inspect(opts[:default_type])}.")
+          opts[:default_type]
         end
 
       unknown_type ->
-        if strict do
+        if opts[:strict] do
           raise ArgumentError, "Unknown JSON Schema type '#{unknown_type}': #{inspect(field_schema)}"
         else
-          Logger.warning("Unknown JSON Schema type '#{unknown_type}' in field #{inspect(field_schema)}. Defaulting to #{inspect(default_type)}.")
-          default_type
+          Logger.warning("Unknown JSON Schema type '#{unknown_type}' in field #{inspect(field_schema)}. Defaulting to #{inspect(opts[:default_type])}.")
+          opts[:default_type]
         end
     end
   end

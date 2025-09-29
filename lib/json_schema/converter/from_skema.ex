@@ -58,6 +58,35 @@ defmodule Skema.JsonSchema.Converter.FromSkema do
   end
 
   @doc """
+  Converts a Skema schema map to JSON Schema properties format with per-field required.
+
+  Returns properties map with required property included in individual fields.
+  """
+  def convert_schema_to_properties_per_field(schema) do
+    Enum.reduce(schema, %{}, fn {field_name, field_def}, props ->
+      field_name_str = to_string(field_name)
+
+      cond do
+        is_map(field_def) ->
+          # Nested schema
+          nested_props = convert_schema_to_properties_per_field(field_def)
+          nested_schema = %{"type" => "object", "properties" => nested_props}
+          Map.put(props, field_name_str, nested_schema)
+
+        is_list(field_def) ->
+          # Field definition list
+          json_field = convert_field_definition_per_field(field_def)
+          Map.put(props, field_name_str, json_field)
+
+        true ->
+          # Simple type atom
+          json_field = %{"type" => convert_type_to_json_schema(field_def)}
+          Map.put(props, field_name_str, json_field)
+      end
+    end)
+  end
+
+  @doc """
   Converts a Skema field definition (keyword list) to JSON Schema field format.
 
   Returns a tuple containing:
@@ -87,6 +116,39 @@ defmodule Skema.JsonSchema.Converter.FromSkema do
     json_field = add_validation_constraints(json_field, field_def)
 
     {json_field, required}
+  end
+
+  @doc """
+  Converts a Skema field definition (keyword list) to JSON Schema field format with per-field required.
+
+  Returns JSON field map with required property included if needed.
+  """
+  def convert_field_definition_per_field(field_def) do
+    type = Keyword.get(field_def, :type, :any)
+    required = Keyword.get(field_def, :required, false)
+    default = Keyword.get(field_def, :default)
+
+    json_field = case convert_type_to_json_schema(type) do
+      nil -> %{}  # :any type should omit type property
+      json_type -> %{"type" => json_type}
+    end
+
+    # Add required property if true
+    json_field = if required, do: Map.put(json_field, "required", true), else: json_field
+
+    # Add default value if present
+    json_field = if default != nil, do: Map.put(json_field, "default", default), else: json_field
+
+    # Add doc field as description
+    doc = Keyword.get(field_def, :doc)
+    json_field = if doc != nil, do: Map.put(json_field, "description", doc), else: json_field
+
+    json_field = add_type_properties(json_field, type, field_def)
+
+    # Add validation constraints
+    json_field = add_validation_constraints(json_field, field_def)
+
+    json_field
   end
 
   # Type conversion functions

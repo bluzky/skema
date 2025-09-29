@@ -162,4 +162,73 @@ defmodule Skema.JsonSchemaTest do
       assert result.valid_field[:type] == :string
     end
   end
+
+  describe "per_field_required option integration" do
+    test "bidirectional conversion with per_field_required option" do
+      # Start with Skema schema
+      original_schema = %{
+        user_name: [type: :string, required: true],
+        user_age: [type: :integer],
+        profile: %{
+          bio: [type: :string, required: true],
+          website: [type: :string]
+        }
+      }
+
+      # Convert to JSON Schema with per_field_required
+      json_schema = JsonSchema.from_schema(original_schema, per_field_required: true)
+
+      # Verify JSON Schema structure
+      assert json_schema["properties"]["user_name"]["required"] == true
+      refute Map.has_key?(json_schema["properties"]["user_age"], "required")
+      assert json_schema["properties"]["profile"]["properties"]["bio"]["required"] == true
+      refute Map.has_key?(json_schema["properties"]["profile"]["properties"]["website"], "required")
+      refute Map.has_key?(json_schema, "required")
+
+      # Convert back to Skema schema with per_field_required
+      converted_schema = JsonSchema.to_schema(json_schema, per_field_required: true, atom_keys: true)
+
+      # Verify round-trip conversion
+      assert converted_schema.user_name[:type] == :string
+      assert converted_schema.user_name[:required] == true
+      assert converted_schema.user_age[:type] == :integer
+      refute converted_schema.user_age[:required]
+
+      assert converted_schema.profile.bio[:type] == :string
+      assert converted_schema.profile.bio[:required] == true
+      assert converted_schema.profile.website[:type] == :string
+      refute converted_schema.profile.website[:required]
+    end
+
+    test "mixing per_field_required with other options" do
+      schema = %{
+        username: [type: :string, required: true, length: [min: 3, max: 20]],
+        score: [type: :float, number: [min: 0, max: 100]]
+      }
+
+      # Convert with multiple options
+      json_schema = JsonSchema.from_schema(schema,
+        per_field_required: true,
+        title: "User Schema",
+        description: "Schema for user validation"
+      )
+
+      # Verify metadata and per-field required
+      assert json_schema["title"] == "User Schema"
+      assert json_schema["description"] == "Schema for user validation"
+      assert json_schema["properties"]["username"]["required"] == true
+      assert json_schema["properties"]["username"]["minLength"] == 3
+      assert json_schema["properties"]["username"]["maxLength"] == 20
+      refute Map.has_key?(json_schema["properties"]["score"], "required")
+      refute Map.has_key?(json_schema, "required")
+
+      # Convert back
+      converted_schema = JsonSchema.to_schema(json_schema, per_field_required: true)
+
+      assert converted_schema["username"][:required] == true
+      assert converted_schema["username"][:length] == [min: 3, max: 20] or
+             converted_schema["username"][:length] == [max: 20, min: 3]
+      refute converted_schema["score"][:required]
+    end
+  end
 end

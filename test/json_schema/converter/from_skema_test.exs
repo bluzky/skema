@@ -477,4 +477,99 @@ defmodule Skema.JsonSchema.Converter.FromSkemaTest do
       assert result["required"] == ["username"]
     end
   end
+
+  describe "from_schema/2 - per_field_required option" do
+    test "generates per-field required when option is true" do
+      schema = %{
+        name: [type: :string, required: true],
+        email: [type: :string, required: true],
+        age: [type: :integer]
+      }
+
+      result = JsonSchema.from_schema(schema, per_field_required: true)
+
+      # Check per-field required properties
+      assert result["properties"]["name"]["required"] == true
+      assert result["properties"]["email"]["required"] == true
+      refute Map.has_key?(result["properties"]["age"], "required")
+
+      # Should not have root-level required array
+      refute Map.has_key?(result, "required")
+    end
+
+    test "works with nested schemas and per_field_required" do
+      schema = %{
+        profile: %{
+          name: [type: :string, required: true],
+          bio: [type: :string]
+        }
+      }
+
+      result = JsonSchema.from_schema(schema, per_field_required: true)
+
+      # Check nested per-field required
+      assert result["properties"]["profile"]["properties"]["name"]["required"] == true
+      refute Map.has_key?(result["properties"]["profile"]["properties"]["bio"], "required")
+
+      # No required arrays anywhere
+      refute Map.has_key?(result, "required")
+      refute Map.has_key?(result["properties"]["profile"], "required")
+    end
+
+    test "combines all constraint types with per_field_required" do
+      schema = %{
+        username: [
+          type: :string,
+          min_length: 3,
+          max_length: 20,
+          pattern: ~r/^[a-zA-Z0-9_]+$/,
+          required: true
+        ],
+        optional_field: [type: :string]
+      }
+
+      result = JsonSchema.from_schema(schema, per_field_required: true)
+
+      username_props = result["properties"]["username"]
+      assert username_props["type"] == "string"
+      assert username_props["minLength"] == 3
+      assert username_props["maxLength"] == 20
+      assert username_props["pattern"] == "^[a-zA-Z0-9_]+$"
+      assert username_props["required"] == true
+
+      refute Map.has_key?(result["properties"]["optional_field"], "required")
+      refute Map.has_key?(result, "required")
+    end
+
+    test "defaults to traditional behavior when per_field_required is false" do
+      schema = %{
+        name: [type: :string, required: true],
+        email: [type: :string, required: true],
+        age: [type: :integer]
+      }
+
+      result = JsonSchema.from_schema(schema, per_field_required: false)
+
+      # Should have traditional required array
+      assert Enum.sort(result["required"]) == ["email", "name"]
+
+      # Should not have per-field required properties
+      refute Map.has_key?(result["properties"]["name"], "required")
+      refute Map.has_key?(result["properties"]["email"], "required")
+    end
+
+    test "omits per-field required when no required fields" do
+      schema = %{
+        name: [type: :string],
+        age: [type: :integer]
+      }
+
+      result = JsonSchema.from_schema(schema, per_field_required: true)
+
+      # No required properties anywhere
+      refute Map.has_key?(result["properties"]["name"], "required")
+      refute Map.has_key?(result["properties"]["age"], "required")
+      refute Map.has_key?(result, "required")
+    end
+  end
 end
