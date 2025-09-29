@@ -505,4 +505,98 @@ defmodule Skema.JsonSchema.Converter.ToSkemaTest do
       refute result.profile.bio[:required]
     end
   end
+
+  describe "to_schema/2 - per_field_required option" do
+    test "uses per-field required when option is true" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{"type" => "string", "required" => true},
+          "email" => %{"type" => "string", "required" => true},
+          "age" => %{"type" => "integer"}
+        }
+      }
+
+      result = JsonSchema.to_schema(json_schema, per_field_required: true)
+
+      assert result["name"][:type] == :string
+      assert result["name"][:required] == true
+      assert result["email"][:type] == :string
+      assert result["email"][:required] == true
+      assert result["age"][:type] == :integer
+      refute result["age"][:required]
+    end
+
+    test "ignores required array when per_field_required is true" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{"type" => "string", "required" => true},
+          "age" => %{"type" => "integer"}
+        },
+        "required" => ["age"]  # This should be ignored
+      }
+
+      result = JsonSchema.to_schema(json_schema, per_field_required: true)
+
+      assert result["name"][:required] == true
+      refute result["age"][:required]  # Not required because no per-field property
+    end
+
+    test "works with nested schemas and per_field_required" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "profile" => %{
+            "type" => "object",
+            "properties" => %{
+              "name" => %{"type" => "string", "required" => true},
+              "bio" => %{"type" => "string"}
+            }
+          }
+        }
+      }
+
+      result = JsonSchema.to_schema(json_schema, per_field_required: true)
+
+      assert is_map(result["profile"])
+      assert result["profile"]["name"][:type] == :string
+      assert result["profile"]["name"][:required] == true
+      assert result["profile"]["bio"][:type] == :string
+      refute result["profile"]["bio"][:required]
+    end
+
+    test "combines per_field_required with atom_keys option" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "user_name" => %{"type" => "string", "required" => true},
+          "user_age" => %{"type" => "integer"}
+        }
+      }
+
+      result = JsonSchema.to_schema(json_schema, per_field_required: true, atom_keys: true)
+
+      assert result.user_name[:type] == :string
+      assert result.user_name[:required] == true
+      assert result.user_age[:type] == :integer
+      refute result.user_age[:required]
+    end
+
+    test "defaults to traditional behavior when per_field_required is false" do
+      json_schema = %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{"type" => "string", "required" => true},  # This should be ignored
+          "age" => %{"type" => "integer"}
+        },
+        "required" => ["name"]
+      }
+
+      result = JsonSchema.to_schema(json_schema, per_field_required: false)
+
+      assert result["name"][:required] == true  # From required array
+      refute result["age"][:required]
+    end
+  end
 end

@@ -59,7 +59,8 @@ defmodule Skema.JsonSchema do
           description: String.t(),
           default_type: atom(),
           strict: boolean(),
-          atom_keys: boolean()
+          atom_keys: boolean(),
+          per_field_required: boolean()
         ]
 
   @default_schema_version "https://json-schema.org/draft/2020-12/schema"
@@ -72,6 +73,7 @@ defmodule Skema.JsonSchema do
   - `:schema_version` - JSON Schema version URI (default: "#{@default_schema_version}")
   - `:title` - Schema title
   - `:description` - Schema description
+  - `:per_field_required` - When true, output required as per-field property instead of array (default: false)
 
   ## Examples
 
@@ -87,20 +89,38 @@ defmodule Skema.JsonSchema do
     schema_version = Keyword.get(opts, :schema_version, @default_schema_version)
     title = Keyword.get(opts, :title)
     description = Keyword.get(opts, :description)
+    per_field_required = Keyword.get(opts, :per_field_required, false)
 
-    {properties, required_fields} = FromSkema.convert_schema_to_properties(schema)
+    if per_field_required do
+      # Use per-field required approach
+      properties = FromSkema.convert_schema_to_properties_per_field(schema)
 
-    json_schema = %{
-      "$schema" => schema_version,
-      "type" => "object",
-      "properties" => properties
-    }
+      json_schema = %{
+        "$schema" => schema_version,
+        "type" => "object",
+        "properties" => properties
+      }
 
-    json_schema = if required_fields != [], do: Map.put(json_schema, "required", required_fields), else: json_schema
-    json_schema = if title, do: Map.put(json_schema, "title", title), else: json_schema
-    json_schema = if description, do: Map.put(json_schema, "description", description), else: json_schema
+      json_schema = if title, do: Map.put(json_schema, "title", title), else: json_schema
+      json_schema = if description, do: Map.put(json_schema, "description", description), else: json_schema
 
-    json_schema
+      json_schema
+    else
+      # Use traditional required array approach
+      {properties, required_fields} = FromSkema.convert_schema_to_properties(schema)
+
+      json_schema = %{
+        "$schema" => schema_version,
+        "type" => "object",
+        "properties" => properties
+      }
+
+      json_schema = if required_fields != [], do: Map.put(json_schema, "required", required_fields), else: json_schema
+      json_schema = if title, do: Map.put(json_schema, "title", title), else: json_schema
+      json_schema = if description, do: Map.put(json_schema, "description", description), else: json_schema
+
+      json_schema
+    end
   end
 
   @doc """
@@ -111,6 +131,7 @@ defmodule Skema.JsonSchema do
   - `:strict` - When false, skip unsupported features instead of raising (default: false)
   - `:default_type` - Default type when type is not specified (default: :any)
   - `:atom_keys` - Convert field names to atoms (default: false, uses strings for security)
+  - `:per_field_required` - When true, check for per-field required property instead of required array (default: false)
 
   ## Examples
 
@@ -132,13 +153,9 @@ defmodule Skema.JsonSchema do
   """
   @spec to_schema(map(), schema_opts()) :: map()
   def to_schema(json_schema, opts \\ []) when is_map(json_schema) do
-    strict = Keyword.get(opts, :strict, false)
-    default_type = Keyword.get(opts, :default_type, :any)
-    atom_keys = Keyword.get(opts, :atom_keys, false)
-
     properties = Map.get(json_schema, "properties", %{})
     required_fields = Map.get(json_schema, "required", [])
 
-    ToSkema.convert_properties_to_schema(properties, required_fields, strict, default_type, atom_keys)
+    ToSkema.convert_properties_to_schema(properties, required_fields, opts)
   end
 end
