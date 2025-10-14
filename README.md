@@ -276,18 +276,6 @@ defschema Product do
 end
 ```
 
-### Dynamic required
-- Can accept function or `{module, function}` tuple
-- Only supports 2-arity functions
-
-```elixir
-def require_email?(value, data), do: is_nil(data.phone)
-
-# ...
-
-field :email, :string, required: {__MODULE__, :require_email?}
-```
-
 ### Validate array items
 Support validating array items with `:each` option. `each` accepts a list of validators:
 

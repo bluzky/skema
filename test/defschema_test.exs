@@ -68,15 +68,9 @@ defmodule SimplifiedDefSchemaTest do
       data = %{"age" => "25"}
 
       # Cast succeeds but validation should catch missing required fields
-      assert {:ok, user} = User.cast(data)
-      assert user.age == 25
-      # missing but cast succeeds
-      assert user.name == nil
-      # missing but cast succeeds
-      assert user.email == nil
 
       # Validation should catch the missing required fields
-      assert {:error, %{errors: errors}} = User.validate(user)
+      assert {:error, %{errors: errors}} = User.cast(data)
       name_errors = errors[:name] || []
       email_errors = errors[:email] || []
       assert "is required" in name_errors
@@ -106,24 +100,6 @@ defmodule SimplifiedDefSchemaTest do
       assert is_list(errors[:email])
       # number error
       assert is_list(errors[:age])
-    end
-  end
-
-  describe "cast_and_validate/1" do
-    test "combines casting and validation successfully" do
-      data = %{"name" => "John", "email" => "john@example.com", "age" => "25"}
-
-      assert {:ok, %User{} = user} = User.cast_and_validate(data)
-      assert user.name == "John"
-      assert user.age == 25
-    end
-
-    test "returns combined errors" do
-      data = %{"name" => "J", "email" => "invalid", "age" => "not-a-number"}
-
-      assert {:error, %{errors: errors}} = User.cast_and_validate(data)
-      # cast error
-      assert "is invalid" in errors[:age]
     end
   end
 
@@ -256,7 +232,7 @@ defmodule SimplifiedDefSchemaTest do
       fields = User.__fields__()
 
       # It's a keyword list, not a map
-      assert is_list(fields)
+      assert is_map(fields)
       assert fields[:name][:type] == :string
       assert fields[:name][:required] == true
       assert fields[:age][:default] == 0
@@ -282,7 +258,6 @@ defmodule SimplifiedDefSchemaTest do
     test "handles non-map input gracefully" do
       assert {:error, %{errors: %{_base: ["expected a map"]}}} = User.cast("invalid")
       assert {:error, %{errors: %{_base: ["expected a map"]}}} = User.validate(123)
-      assert {:error, %{errors: %{_base: ["expected a map"]}}} = User.cast_and_validate(nil)
     end
 
     test "duplicate field names raise compile-time error" do

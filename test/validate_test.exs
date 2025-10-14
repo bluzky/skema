@@ -14,7 +14,7 @@ defmodule ValidateTest do
     }
 
     assert :ok =
-             Skema.validate(data, schema)
+             Skema.validate(data, Skema.expand(schema))
   end
 
   test "validate nested map with bad value should error" do

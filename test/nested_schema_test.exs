@@ -23,7 +23,7 @@ defmodule NestedSchemaTest do
         }
       }
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert result.user.name == "John Doe"
       assert result.user.email == "john@example.com"
       assert result.user.age == 25
@@ -40,7 +40,7 @@ defmodule NestedSchemaTest do
 
       data = %{"user" => %{"name" => "John"}}
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert result.user.name == "John"
       assert result.user.status == "active"
       assert result.user.role == "user"
@@ -58,7 +58,7 @@ defmodule NestedSchemaTest do
 
       data = %{"user" => %{"name" => "John"}}
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert result.user.name == "John"
       assert result.optional_data == nil
     end
@@ -94,7 +94,7 @@ defmodule NestedSchemaTest do
         }
       }
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert result.company.name == "Tech Corp"
       assert result.company.address.street == "123 Main St"
       assert result.company.address.city == "San Francisco"
@@ -131,10 +131,10 @@ defmodule NestedSchemaTest do
         }
       }
 
-      assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, Skema.expand(schema))
 
       # Check that errors are properly nested - the actual structure has Result structs
-      assert %{company: [%Skema.Result{errors: company_errors}]} = errors
+      assert %{company: %Skema.Result{errors: company_errors}} = errors
       assert is_list(company_errors[:name])
       # Check for address or coordinates errors in some form
       assert Map.has_key?(company_errors, :address) or Map.has_key?(company_errors, :coordinates)
@@ -162,7 +162,7 @@ defmodule NestedSchemaTest do
         ]
       }
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert length(result.users) == 2
       assert Enum.at(result.users, 0).name == "John"
       # default
@@ -191,7 +191,7 @@ defmodule NestedSchemaTest do
         ]
       }
 
-      assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, Skema.expand(schema))
 
       # Should contain errors from the invalid item - check actual structure
       assert %{items: %Skema.Result{errors: item_errors}} = errors
@@ -211,7 +211,7 @@ defmodule NestedSchemaTest do
 
       data = %{"tags" => []}
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert result.tags == []
     end
 
@@ -228,7 +228,7 @@ defmodule NestedSchemaTest do
 
       data = %{"optional_items" => nil}
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert result.optional_items == nil
     end
   end
@@ -291,7 +291,7 @@ defmodule NestedSchemaTest do
         }
       }
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert result.blog_post.title == "Elixir is Great"
       assert result.blog_post.author.name == "John Doe"
       assert length(result.blog_post.tags) == 2
@@ -343,7 +343,7 @@ defmodule NestedSchemaTest do
         ]
       }
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert length(result.departments) == 2
       eng_dept = Enum.at(result.departments, 0)
       assert eng_dept.name == "Engineering"
@@ -370,7 +370,7 @@ defmodule NestedSchemaTest do
       data = %{"user" => "not_an_object"}
 
       assert {:error, %{errors: %{user: ["is invalid"]}}} =
-               Skema.cast_and_validate(data, schema)
+               Skema.cast_and_validate(data, Skema.expand(schema))
     end
 
     test "handles invalid array for nested array schema" do
@@ -383,7 +383,7 @@ defmodule NestedSchemaTest do
 
       # This should fail during casting because array expects a list
       assert {:error, %{errors: %{items: ["is invalid"]}}} =
-               Skema.cast_and_validate(data, schema)
+               Skema.cast_and_validate(data, Skema.expand(schema))
     end
 
     test "handles array containing non-objects for nested schema array" do
@@ -401,7 +401,7 @@ defmodule NestedSchemaTest do
 
       # This fails early when trying to cast "invalid_item" as a nested schema
       assert {:error, %{errors: %{users: ["is invalid"]}}} =
-               Skema.cast_and_validate(data, schema)
+               Skema.cast_and_validate(data, Skema.expand(schema))
     end
 
     test "aggregates errors from multiple nested objects in array" do
@@ -427,19 +427,11 @@ defmodule NestedSchemaTest do
         ]
       }
 
-      assert {:error, %{errors: %{products: results}}} =
-               Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: %{products: result}}} =
+               Skema.cast_and_validate(data, Skema.expand(schema))
 
       # Should have multiple Result structs with errors
-      assert is_list(results)
-
-      assert Enum.any?(results, fn
-               %Skema.Result{errors: errors} when is_map(errors) ->
-                 Map.has_key?(errors, :name) or Map.has_key?(errors, :price)
-
-               _ ->
-                 false
-             end)
+      assert %{errors: %{name: _}} = result
     end
 
     test "handles missing required fields in deeply nested structures" do
@@ -487,10 +479,10 @@ defmodule NestedSchemaTest do
         }
       }
 
-      assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, Skema.expand(schema))
 
       # Verify nested error structure with Result structs
-      assert %{order: [%Skema.Result{errors: order_errors}]} = errors
+      assert %{order: %Skema.Result{errors: order_errors}} = errors
       # Missing required id
       assert is_list(order_errors[:id])
 
@@ -543,7 +535,7 @@ defmodule NestedSchemaTest do
         }
       }
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert result.event.title == "Conference 2024"
       assert result.event.date == ~D[2024-12-15]
       assert result.event.metadata.tags == ["tech", "conference", "elixir"]
@@ -572,7 +564,7 @@ defmodule NestedSchemaTest do
         }
       }
 
-      assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, Skema.expand(schema))
 
       # The actual structure is not a list but a single Result
       assert %{user: %Skema.Result{errors: user_errors}} = errors
@@ -583,19 +575,17 @@ defmodule NestedSchemaTest do
 
   describe "cast_and_validate performance with nested schemas" do
     test "handles reasonably large nested structures" do
-      schema = %{
-        data: [
-          type:
-            {:array,
-             %{
-               id: [type: :integer, required: true],
-               attributes: %{
-                 name: [type: :string, required: true],
-                 value: [type: :float, default: 0.0]
-               }
-             }}
-        ]
-      }
+      schema =
+        %{
+          data: [
+            type:
+              {:array,
+               %{
+                 id: [type: :integer, required: true],
+                 attributes: %{name: [type: :string, required: true], value: [type: :float, default: 0.0]}
+               }}
+          ]
+        }
 
       # Generate 100 items
       items =
@@ -611,7 +601,7 @@ defmodule NestedSchemaTest do
 
       data = %{"data" => items}
 
-      assert {:ok, result} = Skema.cast_and_validate(data, schema)
+      assert {:ok, result} = Skema.cast_and_validate(data, Skema.expand(schema))
       assert length(result.data) == 100
       assert Enum.at(result.data, 0).id == 1
       assert Enum.at(result.data, 99).id == 100

@@ -21,12 +21,8 @@ defmodule Skema.SchemaHelper do
     Map.new(schema, &expand_field/1)
   end
 
-  defp expand_field({field, type}) when is_atom(type) or is_map(type) do
-    expand_field({field, [type: type]})
-  end
-
-  defp expand_field({field, {:array, type}}) do
-    {field, [type: {:array, expand_type(type)}]}
+  defp expand_field({field, type}) when is_atom(type) or is_map(type) or is_tuple(type) do
+    expand_field({field, [type: expand_type(type)]})
   end
 
   defp expand_field({field, attrs}) do
@@ -45,6 +41,10 @@ defmodule Skema.SchemaHelper do
   # expand nested schema
   defp expand_type(%{} = type) do
     expand(type)
+  end
+
+  defp expand_type({:array, nested_type}) do
+    {:array, expand_type(nested_type)}
   end
 
   defp expand_type(type), do: type
