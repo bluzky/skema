@@ -144,13 +144,6 @@ defmodule Skema do
   end
 
   @doc """
-  Shortcut for `cast_and_validate/2`.
-  """
-  @spec load(data :: map(), schema :: map() | module()) ::
-          {:ok, map()} | {:error, errors :: map()}
-  def load(data, schema), do: cast_and_validate(data, schema)
-
-  @doc """
   Cast data to proper types according to schema.
 
   Returns `{:ok, data}` if casting succeeds, `{:error, result}` otherwise.
@@ -158,12 +151,7 @@ defmodule Skema do
   @spec cast(data :: map(), schema :: map() | module()) ::
           {:ok, map()} | {:error, %Result{}}
   def cast(data, schema) when is_atom(schema) do
-    fields_schema = Map.new(schema.__fields__())
-
-    case cast(data, fields_schema) do
-      {:ok, data} -> {:ok, struct(schema, data)}
-      error -> error
-    end
+    schema.cast(data)
   end
 
   def cast(data, schema) when is_map(data) and is_map(schema) do
@@ -180,7 +168,7 @@ defmodule Skema do
   @spec validate(data :: map(), schema :: map() | module()) ::
           :ok | {:error, %Result{}}
   def validate(data, schema) when is_atom(schema) do
-    validate(data, schema.__fields__())
+    schema.validate(data)
   end
 
   def validate(data, schema) when is_map(data) and is_map(schema) do
@@ -232,18 +220,8 @@ defmodule Skema do
   """
   @spec transform(data :: map() | struct(), schema :: map() | module()) ::
           {:ok, map()} | {:error, %Result{}}
-  def transform(%schema{} = data) do
-    # Handle struct data with schema that has __fields__()
-    if function_exported?(schema, :__fields__, 0) do
-      data_map = Map.from_struct(data)
-      transform(data_map, schema.__fields__())
-    else
-      {:error, "Schema #{schema} does not support transform"}
-    end
-  end
-
   def transform(data, schema) when is_atom(schema) do
-    transform(data, schema.__fields__())
+    schema.transform(data)
   end
 
   def transform(data, schema) when is_map(data) and is_map(schema) do

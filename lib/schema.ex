@@ -261,10 +261,6 @@ defmodule Skema.Schema do
         {:error, %{errors: %{_base: ["expected a map"]}}}
       end
 
-      def load(params) do
-        cast_and_validate(params)
-      end
-
       @doc """
       Transforms data according to schema transformation rules.
 
