@@ -237,6 +237,6 @@ defmodule Skema do
   end
 
   defp build_transformation_result(schema, data) do
-    Result.new(schema: schema, params: data, valid_data: data)
+    Result.new(schema: schema, params: data, valid_data: Map.from_struct(data))
   end
 end
