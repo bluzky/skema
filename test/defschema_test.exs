@@ -256,7 +256,7 @@ defmodule SimplifiedDefSchemaTest do
       fields = User.__fields__()
 
       # It's a keyword list, not a map
-      assert is_list(fields)
+      assert is_map(fields)
       assert fields[:name][:type] == :string
       assert fields[:name][:required] == true
       assert fields[:age][:default] == 0

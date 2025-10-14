@@ -166,11 +166,6 @@ defmodule Skema do
     end
   end
 
-  def cast(data, schema) when is_map(data) and is_list(schema) do
-    # Handle keyword list schemas (from __fields__())
-    cast(data, Map.new(schema))
-  end
-
   def cast(data, schema) when is_map(data) and is_map(schema) do
     schema
     |> prepare_schema()
@@ -187,11 +182,6 @@ defmodule Skema do
           :ok | {:error, %Result{}}
   def validate(data, schema) when is_atom(schema) do
     validate(data, schema.__fields__())
-  end
-
-  def validate(data, schema) when is_map(data) and is_list(schema) do
-    # Handle keyword list schemas (from __fields__())
-    validate(data, Map.new(schema))
   end
 
   def validate(data, schema) when is_map(data) and is_map(schema) do
@@ -256,11 +246,6 @@ defmodule Skema do
 
   def transform(data, schema) when is_atom(schema) do
     transform(data, schema.__fields__())
-  end
-
-  def transform(data, schema) when is_map(data) and is_list(schema) do
-    # Handle keyword list schemas (from __fields__())
-    transform(data, Map.new(schema))
   end
 
   def transform(data, schema) when is_map(data) and is_map(schema) do

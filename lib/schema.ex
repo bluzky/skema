@@ -75,7 +75,7 @@ defmodule Skema.Schema do
     :ts_enforce_keys
   ]
 
-  @attrs_to_delete @accumulating_attrs
+  @attrs_to_delete @accumulating_attrs ++ [:ts_types_map]
 
   @doc false
   defmacro __using__(_opts) do
@@ -209,7 +209,7 @@ defmodule Skema.Schema do
           {:error, %{errors: %{age: ["is invalid"], name: ["is required"]}}}
       """
       def cast(params) when is_map(params) do
-        case Skema.cast(params, @ts_fields) do
+        case Skema.cast(params, @ts_fields_map) do
           {:ok, data} -> {:ok, new(data)}
           error -> error
         end
@@ -233,7 +233,7 @@ defmodule Skema.Schema do
           {:error, %{errors: %{name: ["can't be blank"], age: ["must be greater than 0"]}}}
       """
       def validate(params) when is_map(params) do
-        Skema.validate(params, @ts_fields)
+        Skema.validate(params, @ts_fields_map)
       end
 
       def validate(_) do
@@ -251,7 +251,7 @@ defmodule Skema.Schema do
           {:ok, %User{name: "John", age: 30}}
       """
       def cast_and_validate(params) when is_map(params) do
-        case Skema.cast_and_validate(params, @ts_fields) do
+        case Skema.cast_and_validate(params, @ts_fields_map) do
           {:ok, data} -> {:ok, new(data)}
           error -> error
         end
@@ -271,7 +271,7 @@ defmodule Skema.Schema do
       Returns `{:ok, struct}` if successful, `{:error, errors}` otherwise.
       """
       def transform(params) when is_map(params) do
-        case Skema.transform(params, @ts_fields) do
+        case Skema.transform(params, @ts_fields_map) do
           {:ok, data} -> {:ok, new(data)}
           error -> error
         end
@@ -292,7 +292,7 @@ defmodule Skema.Schema do
             age: [type: :integer, default: 0]
           }
       """
-      def __fields__, do: @ts_fields
+      def __fields__, do: @ts_fields_map
 
       @doc """
       Returns a list of required field names.
@@ -346,6 +346,8 @@ defmodule Skema.Schema do
         |> Enum.map(fn {name, opts} ->
           {name, Skema.Schema.__resolve_default_value__(opts[:default])}
         end)
+
+      @ts_fields_map Map.new(@ts_fields)
 
       @enforce_keys Enum.reverse(@ts_enforce_keys)
       defstruct struct_fields
