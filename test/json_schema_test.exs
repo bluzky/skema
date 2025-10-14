@@ -86,9 +86,11 @@ defmodule Skema.JsonSchemaTest do
       assert converted_schema["tags"][:default] == []
 
       # Check nested schema
-      assert is_map(converted_schema["profile"])
-      assert converted_schema["profile"]["bio"][:type] == :string
-      assert converted_schema["profile"]["bio"][:length] == [max: 500]
+      assert is_list(converted_schema["profile"])
+      nested_profile = converted_schema["profile"][:type]
+      assert is_map(nested_profile)
+      assert nested_profile["bio"][:type] == :string
+      assert nested_profile["bio"][:length] == [max: 500]
     end
 
     test "preserves documentation in round-trip conversion" do
@@ -107,7 +109,8 @@ defmodule Skema.JsonSchemaTest do
       # Should preserve documentation
       assert converted_schema["name"][:doc] == "User's full name"
       assert converted_schema["age"][:doc] == "Age in years"
-      assert converted_schema["profile"]["bio"][:doc] == "Short biography"
+      nested_profile = converted_schema["profile"][:type]
+      assert nested_profile["bio"][:doc] == "Short biography"
     end
 
     test "round-trip conversion with atom_keys option" do
@@ -194,10 +197,11 @@ defmodule Skema.JsonSchemaTest do
       assert converted_schema.user_age[:type] == :integer
       refute converted_schema.user_age[:required]
 
-      assert converted_schema.profile.bio[:type] == :string
-      assert converted_schema.profile.bio[:required] == true
-      assert converted_schema.profile.website[:type] == :string
-      refute converted_schema.profile.website[:required]
+      nested_profile = converted_schema.profile[:type]
+      assert nested_profile.bio[:type] == :string
+      assert nested_profile.bio[:required] == true
+      assert nested_profile.website[:type] == :string
+      refute nested_profile.website[:required]
     end
 
     test "mixing per_field_required with other options" do

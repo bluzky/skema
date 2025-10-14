@@ -16,22 +16,27 @@ defmodule Skema.JsonSchema.Converter.ToSkema do
   """
   def convert_properties_to_schema(properties, required_fields, opts \\ []) do
     # Set defaults once
-    opts = Keyword.merge([
-      atom_keys: false,
-      strict: false,
-      default_type: :any,
-      per_field_required: false
-    ], opts)
+    opts =
+      Keyword.merge(
+        [
+          atom_keys: false,
+          strict: false,
+          default_type: :any,
+          per_field_required: false
+        ],
+        opts
+      )
 
     Enum.reduce(properties, %{}, fn {field_name, field_schema}, acc ->
       field_key = if opts[:atom_keys], do: String.to_atom(field_name), else: field_name
 
       # Check required based on the per_field_required option
-      is_required = if opts[:per_field_required] do
-        Map.get(field_schema, "required") == true
-      else
-        field_name in required_fields
-      end
+      is_required =
+        if opts[:per_field_required] do
+          Map.get(field_schema, "required") == true
+        else
+          field_name in required_fields
+        end
 
       field_def = convert_json_field_to_skema(field_schema, is_required, opts)
       Map.put(acc, field_key, field_def)
@@ -47,7 +52,7 @@ defmodule Skema.JsonSchema.Converter.ToSkema do
 
     # If type is already a nested schema (map), return it directly
     if is_map(type) do
-      type
+      [type: type]
     else
       field_def = [type: type]
       field_def = if is_required, do: Keyword.put(field_def, :required, true), else: field_def
@@ -87,7 +92,9 @@ defmodule Skema.JsonSchema.Converter.ToSkema do
 
       "object" ->
         case Map.get(field_schema, "properties") do
-          nil -> :map
+          nil ->
+            :map
+
           properties ->
             required = Map.get(field_schema, "required", [])
             convert_properties_to_schema(properties, required, opts)
@@ -104,7 +111,10 @@ defmodule Skema.JsonSchema.Converter.ToSkema do
         if opts[:strict] do
           raise ArgumentError, "JSON Schema field missing required 'type' property: #{inspect(field_schema)}"
         else
-          Logger.warning("JSON Schema field missing 'type' property: #{inspect(field_schema)}. Defaulting to #{inspect(opts[:default_type])}.")
+          Logger.warning(
+            "JSON Schema field missing 'type' property: #{inspect(field_schema)}. Defaulting to #{inspect(opts[:default_type])}."
+          )
+
           opts[:default_type]
         end
 
@@ -112,7 +122,10 @@ defmodule Skema.JsonSchema.Converter.ToSkema do
         if opts[:strict] do
           raise ArgumentError, "Unknown JSON Schema type '#{unknown_type}': #{inspect(field_schema)}"
         else
-          Logger.warning("Unknown JSON Schema type '#{unknown_type}' in field #{inspect(field_schema)}. Defaulting to #{inspect(opts[:default_type])}.")
+          Logger.warning(
+            "Unknown JSON Schema type '#{unknown_type}' in field #{inspect(field_schema)}. Defaulting to #{inspect(opts[:default_type])}."
+          )
+
           opts[:default_type]
         end
     end
