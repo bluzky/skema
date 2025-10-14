@@ -134,7 +134,7 @@ defmodule NestedSchemaTest do
       assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, Skema.expand(schema))
 
       # Check that errors are properly nested - the actual structure has Result structs
-      assert %{company: [%Skema.Result{errors: company_errors}]} = errors
+      assert %{company: %Skema.Result{errors: company_errors}} = errors
       assert is_list(company_errors[:name])
       # Check for address or coordinates errors in some form
       assert Map.has_key?(company_errors, :address) or Map.has_key?(company_errors, :coordinates)
@@ -427,19 +427,11 @@ defmodule NestedSchemaTest do
         ]
       }
 
-      assert {:error, %{errors: %{products: results}}} =
+      assert {:error, %{errors: %{products: result}}} =
                Skema.cast_and_validate(data, Skema.expand(schema))
 
       # Should have multiple Result structs with errors
-      assert is_list(results)
-
-      assert Enum.any?(results, fn
-               %Skema.Result{errors: errors} when is_map(errors) ->
-                 Map.has_key?(errors, :name) or Map.has_key?(errors, :price)
-
-               _ ->
-                 false
-             end)
+      assert %{errors: %{name: _}} = result
     end
 
     test "handles missing required fields in deeply nested structures" do
@@ -490,7 +482,7 @@ defmodule NestedSchemaTest do
       assert {:error, %{errors: errors}} = Skema.cast_and_validate(data, Skema.expand(schema))
 
       # Verify nested error structure with Result structs
-      assert %{order: [%Skema.Result{errors: order_errors}]} = errors
+      assert %{order: %Skema.Result{errors: order_errors}} = errors
       # Missing required id
       assert is_list(order_errors[:id])
 

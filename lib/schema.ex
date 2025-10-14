@@ -241,27 +241,6 @@ defmodule Skema.Schema do
       end
 
       @doc """
-      Performs casting and validation in a single step.
-
-      Returns `{:ok, struct}` if both succeed, `{:error, errors}` otherwise.
-
-      ## Examples
-
-          iex> User.cast_and_validate(%{"name" => "John", "age" => "30"})
-          {:ok, %User{name: "John", age: 30}}
-      """
-      def cast_and_validate(params) when is_map(params) do
-        case Skema.cast_and_validate(params, @ts_fields_map) do
-          {:ok, data} -> {:ok, new(data)}
-          error -> error
-        end
-      end
-
-      def cast_and_validate(_) do
-        {:error, %{errors: %{_base: ["expected a map"]}}}
-      end
-
-      @doc """
       Transforms data according to schema transformation rules.
 
       Returns `{:ok, struct}` if successful, `{:error, errors}` otherwise.
@@ -465,12 +444,9 @@ defmodule Skema.Schema do
   # Determine if field should be required
   defp determine_required_status(opts) do
     case Keyword.get(opts, :required) do
-      # Changed: Default to not required unless explicitly set
       nil -> false
       bool when is_boolean(bool) -> bool
-      # Dynamic required, not enforced at struct level
-      func when is_function(func) or is_tuple(func) -> false
-      other -> raise ArgumentError, "invalid required option: #{inspect(other)}"
+      other -> raise ArgumentError, "required option must be a boolean, got: #{inspect(other)}"
     end
   end
 

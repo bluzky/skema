@@ -60,9 +60,9 @@ defmodule Skema.Transformer do
   """
   @spec apply_transformation(nil | function(), any(), map()) ::
           {:ok, any()} | {:error, any()} | any()
-  def apply_transformation(nil, value, _data), do: {:ok, value}
+  defp apply_transformation(nil, value, _data), do: {:ok, value}
 
-  def apply_transformation(transform_func, value, data) do
+  defp apply_transformation(transform_func, value, data) do
     case apply_function_safely(transform_func, value, data) do
       {status, result} when status in [:error, :ok] -> {status, result}
       result -> {:ok, result}

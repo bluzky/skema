@@ -111,7 +111,6 @@ defmodule Skema do
   """
 
   alias Skema.Caster
-  alias Skema.ErrorHandler
   alias Skema.Result
   alias Skema.Transformer
   alias Skema.Validator
@@ -126,21 +125,16 @@ defmodule Skema do
   @doc """
   Cast and validate data with given schema.
 
+  This function performs casting and validation in a single pass for optimal performance,
+  validating each field immediately after successful casting.
+
   Returns `{:ok, data}` if both casting and validation succeed,
   `{:error, errors}` otherwise.
   """
   @spec cast_and_validate(data :: map(), schema :: map() | module()) ::
           {:ok, map()} | {:error, errors :: map()}
   def cast_and_validate(data, schema) do
-    with {:ok, casted_data} <- cast(data, schema),
-         :ok <- validate(casted_data, schema) do
-      {:ok, casted_data}
-    else
-      {:error, %Result{} = result} ->
-        # For cast errors, also run validation on valid data to get complete error picture
-        enhanced_result = ErrorHandler.enhance_cast_errors_with_validation(result)
-        ErrorHandler.format_error_response({:error, enhanced_result})
-    end
+    cast(data, schema)
   end
 
   @doc """
@@ -157,7 +151,7 @@ defmodule Skema do
   def cast(data, schema) when is_map(data) and is_map(schema) do
     schema
     |> build_initial_result(data)
-    |> Caster.process_casting()
+    |> Caster.process_cast_and_validate()
   end
 
   @doc """

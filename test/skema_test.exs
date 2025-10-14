@@ -296,7 +296,7 @@ defmodule ParamTest do
         }
       }
 
-      assert {:error, %{errors: %{user: [%{errors: %{email: ["length must be greater than or equal to 5"]}}]}}} =
+      assert {:error, %{errors: %{user: %{errors: %{email: ["length must be greater than or equal to 5"]}}}}} =
                Skema.cast_and_validate(data, @schema)
     end
 
@@ -307,7 +307,7 @@ defmodule ParamTest do
         }
       }
 
-      assert {:error, %{errors: %{user: [%{errors: %{name: ["is required"]}}]}}} = Skema.cast_and_validate(data, @schema)
+      assert {:error, %{errors: %{user: %{errors: %{name: ["is required"]}}}}} = Skema.cast_and_validate(data, @schema)
     end
 
     @array_schema %{
@@ -369,7 +369,7 @@ defmodule ParamTest do
         ]
       }
 
-      assert {:error, %{errors: %{user: [%{errors: %{name: ["is required"]}}]}}} =
+      assert {:error, %{errors: %{user: %{errors: %{name: ["is required"]}}}}} =
                Skema.cast_and_validate(data, @array_schema)
     end
 
@@ -454,39 +454,6 @@ defmodule ParamTest do
                Skema.cast_and_validate(%{id: ["1", "2", 3]}, %{
                  id: [type: {:array, :integer}, each: [number: [min: 2]]]
                })
-    end
-
-    test "dynamic require validation" do
-      assert {:ok, %{name: "Dzung"}} =
-               Skema.cast_and_validate(%{}, %{
-                 name: [type: :string, default: "Dzung", required: fn _, _ -> true end]
-               })
-
-      assert {:error, %{errors: %{image: ["is required"]}}} =
-               Skema.cast_and_validate(%{}, %{
-                 name: [type: :string, default: "Dzung", required: true],
-                 image: [type: :string, required: fn _, data -> data.name == "Dzung" end]
-               })
-
-      assert {:error, %{errors: %{image: ["is required"]}}} =
-               Skema.cast_and_validate(%{}, %{
-                 name: [type: :string, default: "Dzung", required: true],
-                 image: [type: :string, required: {__MODULE__, :should_require_image}]
-               })
-
-      assert {:error, %{errors: %{image: ["is required"]}}} =
-               Skema.cast_and_validate(%{}, %{
-                 name: [type: :string, default: "Dzung", required: true],
-                 image: [type: :string, required: {__MODULE__, :should_require_image1}]
-               })
-    end
-
-    def should_require_image1(_image) do
-      true
-    end
-
-    def should_require_image(_image, data) do
-      data.name == "Dzung"
     end
   end
 end

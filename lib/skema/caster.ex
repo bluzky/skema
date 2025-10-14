@@ -30,6 +30,28 @@ defmodule Skema.Caster do
   end
 
   @doc """
+  Processes casting and validation for all fields in a schema in a single pass.
+
+  This is an optimized version that validates each field immediately after successful casting,
+  reducing the number of iterations from 2 to 1.
+
+  Returns `{:ok, data}` if both casting and validation succeed, `{:error, result}` otherwise.
+  """
+  @spec process_cast_and_validate(%Result{}) :: {:ok, map()} | {:error, %Result{}}
+  def process_cast_and_validate(%Result{} = result) do
+    final_result =
+      Enum.reduce(result.schema, result, fn field, acc ->
+        process_field_with_validation(acc, field)
+      end)
+
+    if final_result.valid? do
+      {:ok, final_result.valid_data}
+    else
+      {:error, final_result}
+    end
+  end
+
+  @doc """
   Processes casting for a single field.
   """
   @spec process_field(%Result{}, {atom(), list()}) :: %Result{}
@@ -37,6 +59,32 @@ defmodule Skema.Caster do
     case cast_field(result.params, field_name, definitions) do
       {:ok, value} ->
         Result.put_data(result, field_name, value)
+
+      {:error, error} ->
+        Result.put_error(result, field_name, error)
+    end
+  end
+
+  @doc """
+  Processes casting and validation for a single field.
+
+  Casts the field first, and if successful, immediately validates it.
+  """
+  @spec process_field_with_validation(%Result{}, {atom(), list()}) :: %Result{}
+  def process_field_with_validation(result, {field_name, definitions}) do
+    case cast_field(result.params, field_name, definitions) do
+      {:ok, value} ->
+        # Cast succeeded, now validate
+        updated_result = Result.put_data(result, field_name, value)
+
+        # Validate the field using the validator
+        case Skema.Validator.validate_field(field_name, value, updated_result.valid_data, definitions) do
+          :ok ->
+            updated_result
+
+          {:error, error} ->
+            Result.put_error(updated_result, field_name, error)
+        end
 
       {:error, error} ->
         Result.put_error(result, field_name, error)
@@ -64,6 +112,8 @@ defmodule Skema.Caster do
         {:error, formatted_error}
     end
   end
+
+  def cast_field(_, _, _), do: raise("Use Skema.expand/1 to build full schema")
 
   # Private functions
 

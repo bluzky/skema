@@ -74,19 +74,7 @@ defmodule Skema.Validator do
     end
   end
 
-  defp validate_rule(_field_name, value, data, {:required, required_func})
-       when is_function(required_func) or is_tuple(required_func) do
-    case apply_function_safely(required_func, value, data) do
-      {:error, _} = error ->
-        error
-
-      result ->
-        is_required = result not in [false, nil]
-        Valdi.validate(value, required: is_required)
-    end
-  end
-
-  defp validate_rule(_field_name, value, _data, {:required, required}) do
+  defp validate_rule(_field_name, value, _data, {:required, required}) when is_boolean(required) do
     Valdi.validate(value, required: required)
   end
 
@@ -172,30 +160,5 @@ defmodule Skema.Validator do
 
   defp accumulate_validation_result({:error, msg}, {_, acc_msgs}) do
     {:error, [[msg] | acc_msgs]}
-  end
-
-  defp apply_function_safely(func, value, data) do
-    case func do
-      {mod, func_name} ->
-        cond do
-          function_exported?(mod, func_name, 1) ->
-            apply(mod, func_name, [value])
-
-          function_exported?(mod, func_name, 2) ->
-            apply(mod, func_name, [value, data])
-
-          true ->
-            {:error, "invalid function"}
-        end
-
-      func when is_function(func, 2) ->
-        func.(value, data)
-
-      func when is_function(func, 1) ->
-        func.(value)
-
-      _ ->
-        {:error, "invalid function"}
-    end
   end
 end

@@ -1,6 +1,6 @@
 defmodule DefSchemaNestedTest do
   @moduledoc """
-  Comprehensive test cases for cast_and_validate with defschema-defined nested schemas.
+  Comprehensive test cases for cast with defschema-defined nested schemas.
   Tests struct-based nested schemas and their integration with Skema's validation system.
   """
   use ExUnit.Case
@@ -74,7 +74,7 @@ defmodule DefSchemaNestedTest do
         ]
       }
 
-      assert {:ok, %Company{} = company} = Company.cast_and_validate(data)
+      assert {:ok, %Company{} = company} = Company.cast(data)
 
       # Verify top-level struct
       assert company.name == "Tech Corp"
@@ -136,7 +136,7 @@ defmodule DefSchemaNestedTest do
         ]
       }
 
-      assert {:error, %{errors: errors}} = Company.cast_and_validate(data)
+      assert {:error, %{errors: errors}} = Company.cast(data)
 
       # Should have validation errors at multiple levels
       assert Map.has_key?(errors, :founded_year)
@@ -151,7 +151,7 @@ defmodule DefSchemaNestedTest do
         # Missing required headquarters
       }
 
-      assert {:error, %{errors: errors}} = Company.cast_and_validate(data)
+      assert {:error, %{errors: errors}} = Company.cast(data)
       assert Map.has_key?(errors, :headquarters)
     end
 
@@ -166,7 +166,7 @@ defmodule DefSchemaNestedTest do
         }
       }
 
-      assert {:ok, %Company{} = company} = Company.cast_and_validate(data)
+      assert {:ok, %Company{} = company} = Company.cast(data)
       assert company.headquarters.state == "CA"
       # default empty array
       assert company.departments == []
@@ -212,7 +212,7 @@ defmodule DefSchemaNestedTest do
         ]
       }
 
-      assert {:ok, %Store{} = store} = Store.cast_and_validate(data)
+      assert {:ok, %Store{} = store} = Store.cast(data)
       assert store.name == "Electronics Store"
       assert length(store.products) == 2
 
@@ -275,7 +275,7 @@ defmodule DefSchemaNestedTest do
         ]
       }
 
-      assert {:error, %{errors: errors}} = Store.cast_and_validate(data)
+      assert {:error, %{errors: errors}} = Store.cast(data)
 
       # Should have errors for the products array
       assert Map.has_key?(errors, :products)
@@ -287,12 +287,12 @@ defmodule DefSchemaNestedTest do
         "products" => []
       }
 
-      assert {:ok, %Store{} = store} = Store.cast_and_validate(data)
+      assert {:ok, %Store{} = store} = Store.cast(data)
       assert store.products == []
     end
   end
 
-  describe "cast_and_validate vs separate cast and validate" do
+  describe "cast vs separate cast and validate" do
     defschema Contact do
       field(:email, :string, required: true, format: ~r/@/)
       field(:phone, :string, length: [min: 10])
@@ -304,7 +304,7 @@ defmodule DefSchemaNestedTest do
       field(:contact, Contact, required: true)
     end
 
-    test "cast_and_validate produces same result as cast + validate for valid data" do
+    test "cast produces same result as cast + validate for valid data" do
       data = %{
         "name" => "John Doe",
         "age" => "30",
@@ -314,8 +314,8 @@ defmodule DefSchemaNestedTest do
         }
       }
 
-      # Using cast_and_validate
-      assert {:ok, result1} = Person.cast_and_validate(data)
+      # Using cast
+      assert {:ok, result1} = Person.cast(data)
 
       # Using separate cast and validate
       assert {:ok, cast_result} = Person.cast(data)
@@ -329,7 +329,7 @@ defmodule DefSchemaNestedTest do
       assert result1.contact.phone == result2.contact.phone
     end
 
-    test "cast_and_validate handles combined cast and validation errors" do
+    test "cast handles combined cast and validation errors" do
       data = %{
         # Too short
         "name" => "J",
@@ -343,7 +343,7 @@ defmodule DefSchemaNestedTest do
         }
       }
 
-      assert {:error, %{errors: cast_and_validate_errors}} = Person.cast_and_validate(data)
+      assert {:error, %{errors: cast_and_validate_errors}} = Person.cast(data)
 
       # Should have errors for multiple fields
       # Cast error
@@ -368,13 +368,8 @@ defmodule DefSchemaNestedTest do
         }
       }
 
-      # Cast should succeed (only type conversion)
-      assert {:ok, person} = Person.cast(data)
-      assert person.name == "J"
-      assert person.age == 30
-
       # But validation should fail
-      assert {:error, %{errors: validation_errors}} = Person.validate(person)
+      assert {:error, %{errors: validation_errors}} = Person.cast(data)
       assert Map.has_key?(validation_errors, :name)
       assert Map.has_key?(validation_errors, :contact)
     end
@@ -451,7 +446,7 @@ defmodule DefSchemaNestedTest do
         "total" => "237.57"
       }
 
-      assert {:ok, %Order{} = order} = Order.cast_and_validate(data)
+      assert {:ok, %Order{} = order} = Order.cast(data)
 
       # Verify order details
       assert order.id == "ORD-2024-001"
@@ -512,7 +507,7 @@ defmodule DefSchemaNestedTest do
         "total" => "237.57"
       }
 
-      assert {:error, %{errors: errors}} = Order.cast_and_validate(data)
+      assert {:error, %{errors: errors}} = Order.cast(data)
 
       # Should have validation errors across multiple nested structures
       assert Map.has_key?(errors, :customer_email)
@@ -551,7 +546,7 @@ defmodule DefSchemaNestedTest do
         "items" => items
       }
 
-      assert {:ok, %Container{} = container} = Container.cast_and_validate(data)
+      assert {:ok, %Container{} = container} = Container.cast(data)
       assert container.name == "Large Container"
       assert length(container.items) == 200
 
@@ -575,7 +570,7 @@ defmodule DefSchemaNestedTest do
         "items" => "not_an_array"
       }
 
-      assert {:error, %{errors: errors}} = Container.cast_and_validate(data)
+      assert {:error, %{errors: errors}} = Container.cast(data)
       assert Map.has_key?(errors, :items)
     end
   end
@@ -616,7 +611,7 @@ defmodule DefSchemaNestedTest do
         }
       }
 
-      assert {:ok, %Event{} = event} = Event.cast_and_validate(data)
+      assert {:ok, %Event{} = event} = Event.cast(data)
       assert event.title == "Conference 2024"
 
       assert %EventDate{} = event.event_date
@@ -634,7 +629,7 @@ defmodule DefSchemaNestedTest do
         }
       }
 
-      assert {:error, %{errors: errors}} = Event.cast_and_validate(data)
+      assert {:error, %{errors: errors}} = Event.cast(data)
       assert Map.has_key?(errors, :event_date)
     end
   end
