@@ -413,11 +413,13 @@ defmodule Skema.JsonSchema.Converter.ToSkemaTest do
 
       result = JsonSchema.to_schema(json_schema)
 
-      assert is_map(result["profile"])
-      assert result["profile"]["bio"][:type] == :string
-      assert result["profile"]["bio"][:length] == [max: 500]
-      assert result["profile"]["website"][:type] == :string
-      assert result["profile"]["website"][:format] == "^https?://.+"
+      assert is_list(result["profile"])
+      nested_profile = result["profile"][:type]
+      assert is_map(nested_profile)
+      assert nested_profile["bio"][:type] == :string
+      assert nested_profile["bio"][:length] == [max: 500]
+      assert nested_profile["website"][:type] == :string
+      assert nested_profile["website"][:format] == "^https?://.+"
     end
 
     test "handles nested required fields" do
@@ -437,11 +439,13 @@ defmodule Skema.JsonSchema.Converter.ToSkemaTest do
 
       result = JsonSchema.to_schema(json_schema)
 
-      assert is_map(result["profile"])
-      assert result["profile"]["name"][:type] == :string
-      assert result["profile"]["name"][:required] == true
-      assert result["profile"]["bio"][:type] == :string
-      refute result["profile"]["bio"][:required]
+      assert is_list(result["profile"])
+      nested_profile = result["profile"][:type]
+      assert is_map(nested_profile)
+      assert nested_profile["name"][:type] == :string
+      assert nested_profile["name"][:required] == true
+      assert nested_profile["bio"][:type] == :string
+      refute nested_profile["bio"][:required]
     end
   end
 
@@ -499,10 +503,13 @@ defmodule Skema.JsonSchema.Converter.ToSkemaTest do
 
       result = JsonSchema.to_schema(json_schema, atom_keys: true)
 
-      assert result.profile.name[:type] == :string
-      assert result.profile.name[:required] == true
-      assert result.profile.bio[:type] == :string
-      refute result.profile.bio[:required]
+      assert is_list(result.profile)
+      nested_profile = result.profile[:type]
+      assert is_map(nested_profile)
+      assert nested_profile.name[:type] == :string
+      assert nested_profile.name[:required] == true
+      assert nested_profile.bio[:type] == :string
+      refute nested_profile.bio[:required]
     end
   end
 
@@ -559,11 +566,13 @@ defmodule Skema.JsonSchema.Converter.ToSkemaTest do
 
       result = JsonSchema.to_schema(json_schema, per_field_required: true)
 
-      assert is_map(result["profile"])
-      assert result["profile"]["name"][:type] == :string
-      assert result["profile"]["name"][:required] == true
-      assert result["profile"]["bio"][:type] == :string
-      refute result["profile"]["bio"][:required]
+      assert is_list(result["profile"])
+      nested_profile = result["profile"][:type]
+      assert is_map(nested_profile)
+      assert nested_profile["name"][:type] == :string
+      assert nested_profile["name"][:required] == true
+      assert nested_profile["bio"][:type] == :string
+      refute nested_profile["bio"][:required]
     end
 
     test "combines per_field_required with atom_keys option" do
