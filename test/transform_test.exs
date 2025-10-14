@@ -153,7 +153,7 @@ defmodule TransformTest do
       # Note: Currently transform doesn't handle nested schemas
       # This test documents the current behavior
       assert {:ok, %{user: %{name: "john", email: "JOHN@EXAMPLE.COM"}}} =
-               Skema.transform(data, schema)
+               Skema.transform(data, Skema.expand(schema))
     end
 
     test "transform with bad function arity" do

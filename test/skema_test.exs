@@ -138,7 +138,7 @@ defmodule ParamTest do
 
     test "cast_and_validate base type" do
       Enum.each(@type_checks, fn [type, value, expected_value, expect] ->
-        rs = Skema.cast_and_validate(%{"key" => value}, %{key: type})
+        rs = Skema.cast_and_validate(%{"key" => value}, Skema.expand(%{key: type}))
 
         if expect == :ok do
           assert {:ok, %{key: ^expected_value}} = rs
@@ -149,22 +149,22 @@ defmodule ParamTest do
     end
 
     test "schema short hand" do
-      assert {:ok, %{number: 10}} = Skema.cast_and_validate(%{number: "10"}, %{number: :integer})
+      assert {:ok, %{number: 10}} = Skema.cast_and_validate(%{number: "10"}, Skema.expand(%{number: :integer}))
 
       assert {:ok, %{number: 10}} =
-               Skema.cast_and_validate(%{number: "10"}, %{number: [type: :integer, number: [min: 5]]})
+               Skema.cast_and_validate(%{number: "10"}, Skema.expand(%{number: [type: :integer, number: [min: 5]]}))
     end
 
     test "cast_and_validate mixed keys atom and string" do
       assert {:ok, %{active: false, is_admin: true, name: "blue", age: 19}} =
                Skema.cast_and_validate(
                  %{"active" => false, "is_admin" => true, "name" => "blue", "age" => 19},
-                 %{
+                 Skema.expand(%{
                    active: :boolean,
                    is_admin: :boolean,
                    name: :string,
                    age: :integer
-                 }
+                 })
                )
     end
 
@@ -173,28 +173,31 @@ defmodule ParamTest do
         user_email: [type: :string, from: :email]
       }
 
-      rs = Skema.cast_and_validate(%{email: "xx@yy.com"}, schema)
+      rs = Skema.cast_and_validate(%{email: "xx@yy.com"}, Skema.expand(schema))
       assert {:ok, %{user_email: "xx@yy.com"}} = rs
     end
 
     test "cast_and_validate use default value if field not exist in params" do
       assert {:ok, %{name: "Dzung"}} =
-               Skema.cast_and_validate(%{}, %{name: [type: :string, default: "Dzung"]})
+               Skema.cast_and_validate(%{}, Skema.expand(%{name: [type: :string, default: "Dzung"]}))
     end
 
     test "cast_and_validate use default function if field not exist in params" do
       assert {:ok, %{name: "123"}} =
-               Skema.cast_and_validate(%{}, %{name: [type: :string, default: fn -> "123" end]})
+               Skema.cast_and_validate(%{}, Skema.expand(%{name: [type: :string, default: fn -> "123" end]}))
     end
 
     test "cast_and_validate func is used if set" do
       assert {:ok, %{name: "Dzung is so handsome"}} =
-               Skema.cast_and_validate(%{name: "Dzung"}, %{
-                 name: [
-                   type: :string,
-                   cast_func: fn value -> {:ok, "#{value} is so handsome"} end
-                 ]
-               })
+               Skema.cast_and_validate(
+                 %{name: "Dzung"},
+                 Skema.expand(%{
+                   name: [
+                     type: :string,
+                     cast_func: fn value -> {:ok, "#{value} is so handsome"} end
+                   ]
+                 })
+               )
     end
 
     test "cast_and_validate func with 2 arguments" do
@@ -421,7 +424,7 @@ defmodule ParamTest do
                   },
                   id: ["is invalid"]
                 }
-              }} = Skema.cast_and_validate(%{user: %{"age" => "1", hobbies: "bad array"}, id: "x"}, schema)
+              }} = Skema.cast_and_validate(%{user: %{"age" => "1", hobbies: "bad array"}, id: "x"}, Skema.expand(schema))
     end
 
     test "return data invalid when data given for nested schema is not map" do
@@ -429,14 +432,14 @@ defmodule ParamTest do
       cases = [%{nested: []}, %{nested: 1}, %{nested: "string"}]
 
       Enum.each(cases, fn case ->
-        assert {:error, %{errors: %{nested: ["is invalid"]}}} = Skema.cast_and_validate(case, schema)
+        assert {:error, %{errors: %{nested: ["is invalid"]}}} = Skema.cast_and_validate(case, Skema.expand(schema))
       end)
     end
 
     test "return error when given map for array type" do
       schema = %{ids: {:array, :integer}}
       data = %{ids: %{}}
-      assert {:error, %{errors: %{ids: ["is invalid"]}}} = Skema.cast_and_validate(data, schema)
+      assert {:error, %{errors: %{ids: ["is invalid"]}}} = Skema.cast_and_validate(data, Skema.expand(schema))
     end
 
     test "validate array item" do

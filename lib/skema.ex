@@ -168,7 +168,6 @@ defmodule Skema do
 
   def cast(data, schema) when is_map(data) and is_map(schema) do
     schema
-    |> prepare_schema()
     |> build_initial_result(data)
     |> Caster.process_casting()
   end
@@ -186,7 +185,6 @@ defmodule Skema do
 
   def validate(data, schema) when is_map(data) and is_map(schema) do
     schema
-    |> prepare_schema()
     |> build_validation_result(data)
     |> Validator.process_validation()
   end
@@ -250,16 +248,11 @@ defmodule Skema do
 
   def transform(data, schema) when is_map(data) and is_map(schema) do
     schema
-    |> prepare_schema()
     |> build_transformation_result(data)
     |> Transformer.process_transformation()
   end
 
-  # ============================================================================
-  # Schema Processing Helpers
-  # ============================================================================
-
-  defp prepare_schema(schema) do
+  def expand(schema) do
     Skema.SchemaHelper.expand(schema)
   end
 
@@ -274,15 +267,4 @@ defmodule Skema do
   defp build_transformation_result(schema, data) do
     Result.new(schema: schema, params: data, valid_data: data)
   end
-
-  # Casting logic moved to Skema.Caster module
-
-  # Validation logic moved to Skema.Validator module
-
-  # Transformation logic moved to Skema.Transformer module
-
-  # Utility functions moved to respective modules
-  # - apply_function_safely moved to Skema.Caster, Skema.Validator, Skema.Transformer
-  # - enhance_cast_errors_with_validation moved to Skema.ErrorHandler
-  # - format_error_response moved to Skema.ErrorHandler
 end
