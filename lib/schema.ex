@@ -247,7 +247,7 @@ defmodule Skema.Schema do
       """
       def transform(params) when is_map(params) do
         case Skema.transform(params, @ts_fields_map) do
-          {:ok, data} -> {:ok, new(data)}
+          {:ok, data} -> {:ok, data}
           error -> error
         end
       end
