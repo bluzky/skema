@@ -4,7 +4,7 @@ defmodule Skema.MixProject do
   def project do
     [
       app: :skema,
-      version: "1.4.3",
+      version: "1.5.0",
       elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
