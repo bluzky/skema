@@ -53,11 +53,8 @@ defmodule Skema.Transformer do
     end
   end
 
-  @doc """
-  Applies a transformation function to a field value.
-
-  Supports multiple function signatures and error handling patterns.
-  """
+  # Applies a transformation function to a field value.
+  # Supports multiple function signatures and error handling patterns.
   @spec apply_transformation(nil | function(), any(), map()) ::
           {:ok, any()} | {:error, any()} | any()
   defp apply_transformation(nil, value, _data), do: {:ok, value}
